@@ -1,0 +1,26 @@
+
+services:
+  app:
+    build:
+      context: ./php
+    container_name: orders_module_app
+    volumes:
+      - ./:/var/www/html
+    networks:
+      - laravel
+
+  nginx:
+    image: nginx:latest
+    container_name: orders_module_nginx
+    ports:
+      - "87:80"
+    volumes:
+      - ./:/var/www/html
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - laravel
+networks:
+  laravel:
+    driver: bridge
