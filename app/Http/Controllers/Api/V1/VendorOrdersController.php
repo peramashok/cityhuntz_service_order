@@ -17,6 +17,8 @@ use App\Models\Restaurant;
 use App\Models\Vendor;
 use App\Models\Order;
 use App\Models\SubscriptionTransaction;
+use App\CentralLogics\OrderLogic;
+use Illuminate\Support\Facades\Config;
 
 class VendorOrdersController extends Controller
 {
@@ -172,7 +174,7 @@ class VendorOrdersController extends Controller
             ->where('id', $request['order_id'])
             ->Notpos()
             ->first();
-
+ 
             return response()->json(Helpers::order_data_formatting($order),200);
          } catch(\Extension $e){
              return response()->json([
@@ -211,16 +213,20 @@ class VendorOrdersController extends Controller
             $order['details'] = Helpers::order_details_data_formatting($details);
             return response()->json(['order' => $order],200);
          } catch(\Extension $e){
-             return response()->json([
-                   'status' => 'failed',
-                   'message' => "Something went wrong. ",
-                   'error'=>$e->getMessage()
-                 ], 500);
+            return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getMessage()
+            ], 500);
         }
     }
 
 
-
+    /**
+     * update order status
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Resp
+    */
     public function update_order_status(Request $request)
     {
         try{
@@ -229,7 +235,6 @@ class VendorOrdersController extends Controller
                 'reason' =>'required_if:status,canceled',
                 'status' => 'required|in:confirmed,processing,handover,delivered,canceled',
                 'order_proof' =>'nullable|array|max:5',
-
             ]);
 
             $validator->sometimes('otp', 'required', function ($request) {
@@ -375,7 +380,25 @@ class VendorOrdersController extends Controller
                 $images = [];
                 if (!empty($request->file('order_proof'))) {
                     foreach ($request->order_proof as $img) {
-                        $image_name = Helpers::upload('order/', 'png', $img);
+                        // $image_name = Helpers::upload('order/', 'png', $img);
+                        $url = env('OBJECT_APIURL');
+                        $modifiedUrl = str_replace('/api/v1', '', $url);
+                        $file = $request->file('image');
+                        $imagePhotoUrl = "";
+                        $imageDocuUrl = "";
+                         
+                        $image_profile_pic = rand() . '.' . $file->getClientOriginalExtension();
+                        $relativePath = "category_imgs" . "/" . date("Y") . "/" . date("M") . "/" . $image_profile_pic;
+                        $imageRespose = Helpers::imageUploadToDrive($file, null, $relativePath, $image_profile_pic);
+                        if($imageRespose['success']){
+                            $image_name = $imageRespose['url'];
+                        } else {
+                            return response()->json([
+                                'status' => 'failed',
+                                'message' => $imageRespose['message']
+                            ], 400);  
+                        }
+
                         array_push($img_names, ['img'=>$image_name, 'storage'=> Helpers::getDisk()]);
                     }
                     $images = $img_names;
@@ -414,7 +437,7 @@ class VendorOrdersController extends Controller
             $order->order_status = $request['status'];
             $order[$request['status']] = now();
             $order->save();
-            Helpers::send_order_notification($order);
+           // Helpers::send_order_notification($order);
 
             return response()->json(['message' => 'Status updated'], 200);
 

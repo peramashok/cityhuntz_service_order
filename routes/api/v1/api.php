@@ -33,7 +33,7 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
             Route::get('current-orders', 'get_current_orders');
             Route::get('completed-orders', 'get_completed_orders');
             Route::get('all-orders', 'get_all_orders');
-            Route::put('update-order-status', 'update_order_status');
+            Route::post('update-order-status', 'update_order_status');
         });
     });
 
