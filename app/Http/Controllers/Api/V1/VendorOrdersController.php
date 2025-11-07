@@ -449,4 +449,62 @@ class VendorOrdersController extends Controller
                  ], 500);
         }
     }
+
+    /**
+     * get all orders based on the restaurant id
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Resp
+     */
+    public function getRestaurantOrder(Request $request, $restaurantId)
+    {
+        try{
+
+            $restaurant=Restaurant::where('id', $restaurantId)->first();
+            if(is_null($restaurant)){
+
+            }
+
+            $list=Order::where('restaurant_id', $restaurantId)->with('customer');
+            if($request->has('search')){
+               $key = explode(' ', $request['search']);
+               $list=$list->when(isset($key) , function ($q) use($key){
+                    $q->where(function ($q) use ($key) {
+                        foreach ($key as $value) {
+                           $q->orWhere('id', 'like', "%{$value}%");
+                        }
+                    });
+                });
+            }
+
+            $pageno = 0; $pagelength = 10; 
+            $totalrecords = $list->count();
+            if ($request->filled('pagelength') && $request->filled('pageno')) {
+                $pagelength = $request->pagelength;
+                $pageno = $request->pageno;
+            }      
+            $list = $list->latest()->Notpos()
+                 ->skip(($pageno - 1) * $pagelength)
+                 ->take($pagelength)
+                 ->get();
+ 
+
+            $data['all_order_counts']=Order::where('restaurant_id', $restaurantId)->Notpos()->count();
+            $data['scheduled_orders']=Order::Scheduled()->Notpos()->where('restaurant_id', $restaurantId)->count();
+            $data['pending_orders']=Order::where(['order_status'=>'pending','restaurant_id'=>$restaurantId])->Notpos()->count();
+            $data['delivered_orders']=Order::where(['order_status'=>'delivered', 'restaurant_id'=>$restaurantId])->Notpos()->count();
+            $data['cancelled_orders']=Order::where(['order_status'=>'canceled', 'restaurant_id'=>$restaurantId])->count();
+            $data['data'] = $list;
+            $data['current_page'] =$pageno ? $pageno : '1';
+            $data['total'] = $totalrecords;
+            $data['per_page'] = $pagelength ? $pagelength : '10';
+            return response()->json(['status' => 'success', 'data' => $data], 200);
+            
+        } catch(\Extension $e){
+             return response()->json([
+                   'status' => 'failed',
+                   'message' => "Something went wrong. ",
+                   'error'=>$e->getMessage()
+                 ], 500);
+        }
+    }
 }

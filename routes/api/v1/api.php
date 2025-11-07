@@ -19,8 +19,10 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
 
    
     Route::group(['prefix' => 'member', 'middleware' => ['auth:api']], function () {
-          
-     
+
+         Route::controller(VendorOrdersController::class)->group(function () {
+             Route::post('restaurant/order-details/{restaurant}', 'getRestaurantOrder')->name('view-restaurant-order');
+         });
  
     
     });
