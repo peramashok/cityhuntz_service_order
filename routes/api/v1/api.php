@@ -19,8 +19,10 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
 
    
     Route::group(['prefix' => 'member', 'middleware' => ['auth:api']], function () {
-          
-     
+
+         Route::controller(VendorOrdersController::class)->group(function () {
+             Route::post('restaurant/order-details/{restaurant}', 'getRestaurantOrder')->name('view-restaurant-order');
+         });
  
     
     });
@@ -28,10 +30,12 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
    Route::group(['prefix' => 'vendor', 'middleware' => ['auth:api']], function () {
 
          Route::controller(VendorOrdersController::class)->group(function () {
-
+            Route::get('order-details', 'get_order_details');
+            Route::get('order', 'get_order');
             Route::get('current-orders', 'get_current_orders');
-             Route::get('completed-orders', 'get_completed_orders');
+            Route::get('completed-orders', 'get_completed_orders');
             Route::get('all-orders', 'get_all_orders');
+            Route::post('update-order-status', 'update_order_status');
         });
     });
 

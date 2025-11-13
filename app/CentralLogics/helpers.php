@@ -26,6 +26,7 @@ use App\Models\Zone;
 use MatanYadaev\EloquentSpatial\Objects\Point;
 use App\Models\Coupon;
 use App\CentralLogics\RestaurantLogic;
+use App\Models\VariationOption;
 
 class Helpers
 { 
@@ -591,5 +592,53 @@ class Helpers
             unset($data['details']);
         }
         return $data;
+    }
+
+
+      public static function order_details_data_formatting($data)
+    {
+        $storage = [];
+        foreach ($data as $item) {
+            $item['add_ons'] = json_decode($item['add_ons']);
+            $item['variation'] = json_decode($item['variation']);
+            $item['food_details'] = json_decode($item['food_details'], true);
+            if ($item['item_id']){
+                $product = \App\Models\Food::where(['id' => $item['food_details']['id']])->first();
+                $item['image_full_url'] = $product?->image_full_url;
+//                $item['images_full_url'] = $product->images_full_url;
+            }else{
+               $product = \App\Models\ItemCampaign::where(['id' => $item['food_details']['id']])->first();
+                $item['image_full_url'] = $product?->image_full_url;
+//                $item['images_full_url'] = [];
+            }
+            array_push($storage, $item);
+        }
+        $data = $storage;
+
+        return $data;
+    }
+
+     public static function decreaseSellCount($order_details){
+        foreach ($order_details as $detail) {
+            $optionIds=[];
+            if($detail->variation != '[]'){
+                foreach (json_decode($detail->variation, true) as $value) {
+                    foreach (data_get($value,'values' ,[]) as $item) {
+                        if(data_get($item, 'option_id', null ) != null){
+                            $optionIds[] = data_get($item, 'option_id', null );
+                        }
+                    }
+                }
+                VariationOption::whereIn('id', $optionIds)->where('sell_count', '>', 0)->decrement('sell_count' ,$detail->quantity);
+            }
+            $detail->food()->where('sell_count', '>', 0)->decrement('sell_count' ,$detail->quantity);
+
+            foreach (json_decode($detail->add_ons, true) as $add_ons) {
+                if(data_get($add_ons, 'id', null ) != null){
+                AddOn::where('id',data_get($add_ons, 'id', null ))->where('sell_count', '>', 0)->decrement('sell_count' ,data_get($add_ons, 'quantity', 1 ));
+                }
+            }
+        }
+        return true;
     }
 }
