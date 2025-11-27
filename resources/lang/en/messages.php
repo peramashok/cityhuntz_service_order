@@ -6443,7 +6443,7 @@
   'restaurant_is_closed_at_order_time' => 'Restaurant is closed at order time',
   'Dine_date_is_not_available' => 'Dine date is not available',
   'Credential_do_not_match,_please_try_again.' => 'Credential do not match, please try again.',
-  'your_account_details_not_found'=>'Your account details not found',
+  'your_account_details_not_found' => 'Your account details not found',
   'account_inactive_contact_our_administrator' => 'Your account was inactive. Please contact our administrator.',
   'dine_in_orders' => 'Dine in orders',
   '(800x800px)' => '(800x800px)',
@@ -6484,5 +6484,6 @@
   'employee_added_successfully' => 'Employee added successfully',
   'Failed_to_send_mail' => 'Failed to send mail',
   'This email id does not exists.' => 'This email id does not exists.',
-  'profile_picture_updated'=>'Profile picture updated successfully',
+  'profile_picture_updated' => 'Profile picture updated successfully',
+  'Item_already_exists' => 'Item already exists',
 );
