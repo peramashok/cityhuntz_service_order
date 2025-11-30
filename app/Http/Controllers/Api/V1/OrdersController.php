@@ -121,8 +121,77 @@ class OrdersController extends Controller
         return response()->json($data, 200);
     }
 
+     /**
+     * cancel placed order
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Resp
+     */
+     public function cancel_order(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'reason' => 'required|max:255',
+            'guest_id' => $request->user ? 'nullable' : 'required',
+            'order_id'=>'required|exists:orders,id'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => Helpers::error_processor($validator)], 403);
+        }
+        $user_id = $request->user ? $request->user->id : $request['guest_id'];
+        $order = Order::where(['user_id' => $user_id, 'id' => $request['order_id']])
+
+        ->when(!isset($request->user) , function($query){
+            $query->where('is_guest' , 1);
+        })
+
+        ->when(isset($request->user)  , function($query){
+            $query->where('is_guest' , 0);
+        })
+        ->with('details')
+        ->Notpos()->first();
+        if(!$order){
+                return response()->json([
+                    'errors' => [
+                        ['code' => 'order', 'message' => translate('messages.not_found')]
+                    ]
+                ], 404);
+        }
+        else if ($order->order_status == 'pending' || $order->order_status == 'failed' || $order->order_status == 'canceled'  ) {
+            $order->order_status = 'canceled';
+            $order->canceled = now();
+            $order->cancellation_reason = $request->reason;
+            $order->canceled_by = 'customer';
+            $order->save();
+
+            Helpers::decreaseSellCount(order_details:$order->details);
+            //notification need to do
+           // Helpers::send_order_notification($order);
+            Helpers::increment_order_count($order->restaurant); //for subscription package order increase
 
 
+            $wallet_status= BusinessSetting::where('key','wallet_status')->first()?->value;
+            $refund_to_wallet= BusinessSetting::where('key', 'wallet_add_refund')->first()?->value;
+
+            if($order?->payments && $order?->is_guest == 0){
+                $refund_amount =$order->payments()->where('payment_status','paid')->sum('amount');
+                if($wallet_status &&  $refund_to_wallet && $refund_amount > 0){
+                    CustomerLogic::create_wallet_transaction(user_id:$order->user_id, amount:$refund_amount,transaction_type: 'order_refund',referance: $order->id);
+
+                    return response()->json(['message' => translate('messages.order_canceled_successfully_and_refunded_to_wallet')], 200);
+                } else {
+                    return response()->json(['message' => translate('messages.order_canceled_successfully_and_for_refund_amount_contact_admin')], 200);
+                }
+            }
+
+
+            return response()->json(['message' => translate('messages.order_canceled_successfully')], 200);
+        }
+        return response()->json([
+            'errors' => [
+                ['code' => 'order', 'message' => translate('messages.you_can_not_cancel_after_confirm')]
+            ]
+        ], 403);
+    }
 
   public function place_order(Request $request)
     {
@@ -818,7 +887,7 @@ class OrdersController extends Controller
     }
 
 
- 
+    
 
     private function createCashBackHistory($order_amount, $user_id,$order_id){
         $cashBack =  Helpers::getCalculatedCashBackAmount(amount:$order_amount, customer_id:$user_id);

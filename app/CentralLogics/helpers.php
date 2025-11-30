@@ -628,28 +628,30 @@ class Helpers
      public static function decreaseSellCount($order_details){
         foreach ($order_details as $detail) {
             $optionIds=[];
+            $detail->variation=$detail->variation!='' ? $detail->variation : []; 
             if($detail->variation != '[]'){
-                foreach (json_decode($detail->variation, true) as $value) {
-                    foreach (data_get($value,'values' ,[]) as $item) {
-                        if(data_get($item, 'option_id', null ) != null){
-                            $optionIds[] = data_get($item, 'option_id', null );
+                if(count($detail->variation)>0){
+                    foreach (json_decode($detail->variation, true) as $value) {
+                        foreach (data_get($value,'values' ,[]) as $item) {
+                            if(data_get($item, 'option_id', null ) != null){
+                                $optionIds[] = data_get($item, 'option_id', null );
+                            }
                         }
                     }
+                    VariationOption::whereIn('id', $optionIds)->where('sell_count', '>', 0)->decrement('sell_count' ,$detail->quantity);
                 }
-                VariationOption::whereIn('id', $optionIds)->where('sell_count', '>', 0)->decrement('sell_count' ,$detail->quantity);
             }
             $detail->food()->where('sell_count', '>', 0)->decrement('sell_count' ,$detail->quantity);
-
-            foreach (json_decode($detail->add_ons, true) as $add_ons) {
-                if(data_get($add_ons, 'id', null ) != null){
-                AddOn::where('id',data_get($add_ons, 'id', null ))->where('sell_count', '>', 0)->decrement('sell_count' ,data_get($add_ons, 'quantity', 1 ));
+            if($detail->add_ons!='' && count($detail->add_ons)>0){
+                foreach (json_decode($detail->add_ons, true) as $add_ons) {
+                    if(data_get($add_ons, 'id', null ) != null){
+                    AddOn::where('id',data_get($add_ons, 'id', null ))->where('sell_count', '>', 0)->decrement('sell_count' ,data_get($add_ons, 'quantity', 1 ));
+                    }
                 }
             }
         }
         return true;
     }
-
-
 
 
     public static function addonAndVariationStockCheck($product, $quantity=1, $add_on_qtys=1, $variation_options=null,$add_on_ids= null ,$incrementCount = false ,$old_selected_variations=[] ,$old_selected_without_variation = 0,$old_selected_addons=[]){
@@ -1309,6 +1311,14 @@ class Helpers
         return $price_tax;
     }
 
+    public static function increment_order_count($data){
+        $restaurant=$data;
+        $rest_sub=$restaurant->restaurant_sub;
+        if ( $restaurant->restaurant_model == 'subscription' && isset($rest_sub) && $rest_sub->max_order != "unlimited") {
+            $rest_sub->increment('max_order', 1);
+        }
+        return true;
+    }
 
 
 }

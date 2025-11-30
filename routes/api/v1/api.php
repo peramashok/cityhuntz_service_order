@@ -56,7 +56,7 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
             // Route::get('running-orders', 'OrderController@get_running_orders');
             // Route::get('details', 'OrderController@get_order_details');
             Route::post('place', 'place_order');  // visitor logs
-            Route::put('cancel', 'cancel_order');
+            Route::post('cancel', 'cancel_order');
             // Route::post('refund-request', 'OrderController@refund_request');
             // Route::get('refund-reasons', 'OrderController@refund_reasons');
             // Route::get('track', 'OrderController@track_order');
