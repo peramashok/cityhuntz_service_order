@@ -18,6 +18,8 @@ class CartController extends Controller
 {
     public function get_carts(Request $request)
     {
+
+        dd($request->user);
         
         $validator = Validator::make($request->all(), [
             'guest_id' => $request->user ? 'nullable' : 'required',
@@ -107,8 +109,8 @@ class CartController extends Controller
         $cart->item_type = $request->model;
         $cart->price = $request->price;
         $cart->quantity = $request->quantity;
-        $cart->variations = json_encode($request->variations);
-        $cart->variation_options = json_encode($request?->variation_options ?? []);
+        $cart->variations =[];// json_encode($request->variations);
+        $cart->variation_options =[]; //json_encode($request?->variation_options ?? []);
         $cart->save();
 
         $item->carts()->save($cart);

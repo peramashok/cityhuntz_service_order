@@ -46,7 +46,25 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
     });
 
     // Customer app
-    Route::group(['prefix' => 'customer'], function () {
+    // Route::group(['prefix' => 'customer'], function () {
+
+     Route::group(['prefix' => 'customer', 'middleware' => 'apiGuestCheck'], function () {
+
+        Route::prefix('order')->controller(OrdersController::class)->group(function () {
+            // Route::get('list', 'OrderController@get_order_list');
+            // Route::get('order-subscription-list', 'OrderController@get_order_subscription_list');
+            // Route::get('running-orders', 'OrderController@get_running_orders');
+            // Route::get('details', 'OrderController@get_order_details');
+            Route::post('place', 'place_order');  // visitor logs
+            Route::put('cancel', 'cancel_order');
+            // Route::post('refund-request', 'OrderController@refund_request');
+            // Route::get('refund-reasons', 'OrderController@refund_reasons');
+            // Route::get('track', 'OrderController@track_order');
+            // Route::put('payment-method', 'OrderController@update_payment_method');
+            // Route::put('offline-payment', 'OrderController@offline_payment');
+            // Route::put('offline-payment-update', 'OrderController@update_offline_payment_info');
+        });
+
         Route::prefix('cart')->controller(CartController::class)->group(function () {
             Route::get('list', 'get_carts');
             Route::post('add', 'add_to_cart');

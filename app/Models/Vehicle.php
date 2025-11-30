@@ -22,4 +22,9 @@ class Vehicle extends Model
     public function getTypeAttribute($value){
         return $value;
     }
+
+     public function scopeActive($query)
+    {
+        return $query->where('status', '=', 1);
+    }
 }

@@ -29,6 +29,11 @@ use App\Models\Coupon;
 use App\CentralLogics\RestaurantLogic;
 use App\Models\VariationOption;
 use App\Models\AddOn;
+use App\Models\Vehicle;
+use App\CentralLogics\CouponLogic;
+use App\Models\Currency;
+use App\Models\VisitorLog;
+use App\Models\CashBack;
 
 class Helpers
 { 
@@ -869,5 +874,441 @@ class Helpers
         }
         return $data;
     }
+
+
+    public static function vehicle_extra_charge(float $distance_data) {
+        $data =[];
+        $vehicle = Vehicle::active()
+        ->where(function ($query) use ($distance_data) {
+            $query->where('starting_coverage_area', '<=', $distance_data)->where('maximum_coverage_area', '>=', $distance_data)
+            ->orWhere(function ($query) use ($distance_data) {
+                $query->where('starting_coverage_area', '>=', $distance_data);
+            });
+        })->orderBy('starting_coverage_area')->first();
+        if(empty($vehicle)){
+            $vehicle = Vehicle::active()->orderBy('maximum_coverage_area', 'desc')->first();
+        }
+        $data['extra_charge'] = $vehicle->extra_charges  ?? 0;
+        $data['vehicle_id'] =  $vehicle->id  ?? null;
+        return $data;
+    }
+
+    public static function get_varient(array $product_variations, array $variations)
+    {
+        $result = [];
+        $variation_price = 0;
+
+        foreach($variations as $k=> $variation){
+            foreach($product_variations as  $product_variation){
+                if( isset($variation['values']) && isset($product_variation['values']) && $product_variation['name'] == $variation['name']  ){
+                    $result[$k] = $product_variation;
+                    $result[$k]['values'] = [];
+                    foreach($product_variation['values'] as $key=> $option){
+                        if(in_array($option['label'], $variation['values']['label'])){
+                            $result[$k]['values'][] = $option;
+                            $variation_price += $option['optionPrice'];
+                        }
+                    }
+                }
+            }
+        }
+
+        return ['price'=>$variation_price,'variations'=>array_values($result)];
+      }
+
+ public static function product_data_formatting($data, $multi_data = false, $trans = false, $local = 'en')
+    {
+        $storage = [];
+        if ($multi_data == true) {
+            foreach ($data as $item) {
+                $variations = [];
+                if ($item->title) {
+                    $item['name'] = $item->title;
+                    unset($item['title']);
+                }
+                if ($item->start_time) {
+                    $item['available_time_starts'] = $item->start_time->format('H:i');
+                    unset($item['start_time']);
+                }
+                if ($item->end_time) {
+                    $item['available_time_ends'] = $item->end_time->format('H:i');
+                    unset($item['end_time']);
+                }
+
+                if ($item->start_date) {
+                    $item['available_date_starts'] = $item->start_date->format('Y-m-d');
+                    unset($item['start_date']);
+                }
+                if ($item->end_date) {
+                    $item['available_date_ends'] = $item->end_date->format('Y-m-d');
+                    unset($item['end_date']);
+                }
+                $item['recommended'] =(int) $item->recommended;
+                $categories = [];
+                foreach (json_decode($item?->category_ids) as $value) {
+                    $categories[] = ['id' => (string)$value->id, 'position' => $value->position];
+                }
+                $item['category_ids'] = $categories;
+                // $item['attributes'] = json_decode($item['attributes']);
+                // $item['choice_options'] = json_decode($item['choice_options']);
+                $item['add_ons'] = self::addon_data_formatting(AddOn::whereIn('id', json_decode($item['add_ons']))->active()->get(), true, $trans, $local);
+                $item['tags'] = $item->tags;
+                $item['variations'] = json_decode($item['variations'], true);
+                $item['restaurant_name'] = $item->restaurant->name;
+                $item['restaurant_status'] = (int) $item->restaurant->status;
+                $item['restaurant_discount'] = self::get_restaurant_discount($item->restaurant) ? $item->restaurant->discount->discount : 0;
+                $item['restaurant_opening_time'] = $item->restaurant->opening_time ? $item->restaurant->opening_time->format('H:i') : null;
+                $item['restaurant_closing_time'] = $item->restaurant->closeing_time ? $item->restaurant->closeing_time->format('H:i') : null;
+                $item['schedule_order'] = $item->restaurant->schedule_order;
+                $item['tax'] = $item->restaurant->tax;
+                try {
+                    $reviewsInfo = $item->rating()->first();
+                } catch (\Exception $e) {
+                    $reviewsInfo = null;
+                }
+                $item['rating_count'] = $reviewsInfo?->rating_count ?? 0;
+                $item['avg_rating'] = $reviewsInfo?->average ?? 0;
+                $item['min_delivery_time'] =  (int) explode('-',$item->restaurant->delivery_time)[0] ?? 0;
+                $item['max_delivery_time'] =  (int) explode('-',$item->restaurant->delivery_time)[1] ?? 0;
+
+
+                if( $item->restaurant->restaurant_model == 'subscription'  && isset($item->restaurant->restaurant_sub)){
+                    $item->restaurant['self_delivery_system'] = (int) $item->restaurant->restaurant_sub->self_delivery;
+                }
+
+                $item['free_delivery'] =  (int) $item->restaurant->free_delivery ?? 0;
+                $item['halal_tag_status'] =  (int) $item->restaurant->restaurant_config?->halal_tag_status??0;
+                $item['nutritions_name']= $item?->nutritions ? Nutrition::whereIn('id',$item?->nutritions->pluck('id') )->pluck('nutrition') : null;
+                $item['allergies_name']= $item?->allergies ?Allergy::whereIn('id',$item?->allergies->pluck('id') )->pluck('allergy') : null;
+
+               if(self::getDeliveryFee($item->restaurant)  ==  'free_delivery'){
+                    $item['free_delivery'] =  (int)  1;
+               }
+
+                $cuisine =[];
+                $cui =$item->restaurant->load('cuisine');
+                if(isset($cui->cuisine)){
+                    foreach($cui->cuisine as $cu){
+                        $cuisine[]= ['id' => (int) $cu->id, 'name' => $cu->name , 'image' => $cu->image];
+                    }
+                }
+
+                $item['cuisines'] =   $cuisine;
+
+
+                unset($item['restaurant']);
+                unset($item['rating']);
+                array_push($storage, $item);
+            }
+            $data = $storage;
+        } else {
+            $variations = [];
+            $categories = [];
+            foreach (json_decode($data?->category_ids) as $value) {
+                $categories[] = ['id' => (string)$value->id, 'position' => $value->position];
+            }
+            $data['category_ids'] = $categories;
+
+            $data['add_ons'] = self::addon_data_formatting(AddOn::whereIn('id', json_decode($data['add_ons']))->active()->get(), true, $trans, $local);
+            if ($data->title) {
+                $data['name'] = $data->title;
+                unset($data['title']);
+            }
+            if ($data->start_time) {
+                $data['available_time_starts'] = $data->start_time->format('H:i');
+                unset($data['start_time']);
+            }
+            if ($data->end_time) {
+                $data['available_time_ends'] = $data->end_time->format('H:i');
+                unset($data['end_time']);
+            }
+            if ($data->start_date) {
+                $data['available_date_starts'] = $data->start_date->format('Y-m-d');
+                unset($data['start_date']);
+            }
+            if ($data->end_date) {
+                $data['available_date_ends'] = $data->end_date->format('Y-m-d');
+                unset($data['end_date']);
+            }
+            $data['variations'] = json_decode($data['variations'], true);
+            $data['restaurant_name'] = $data->restaurant->name;
+            $data['restaurant_status'] = (int) $data->restaurant->status;
+            $data['restaurant_discount'] = self::get_restaurant_discount($data->restaurant) ? $data->restaurant->discount->discount : 0;
+            $data['restaurant_opening_time'] = $data->restaurant->opening_time ? $data->restaurant->opening_time->format('H:i') : null;
+            $data['restaurant_closing_time'] = $data->restaurant->closeing_time ? $data->restaurant->closeing_time->format('H:i') : null;
+            $data['schedule_order'] = $data->restaurant->schedule_order;
+                try {
+                    $reviewsInfo = $data->rating()->first();
+                } catch (\Exception $e) {
+                    $reviewsInfo = null;
+                }
+                $data['rating_count'] = $reviewsInfo?->rating_count ?? 0;
+                $data['avg_rating'] = $reviewsInfo?->average ?? 0;
+            $data['recommended'] =(int) $data->recommended;
+
+
+
+            if( $data->restaurant->restaurant_model == 'subscription'  && isset($data->restaurant->restaurant_sub)){
+                $data->restaurant['self_delivery_system'] = (int) $data->restaurant->restaurant_sub->self_delivery;
+            }
+
+            $data['free_delivery'] =  (int) $data->restaurant->free_delivery ?? 0;
+            $data['halal_tag_status'] =  (int) $data->restaurant->restaurant_config?->halal_tag_status??0;
+            $data['nutritions_name']= $data?->nutritions ? Nutrition::whereIn('id',$data?->nutritions->pluck('id') )->pluck('nutrition') : null;
+            $data['allergies_name']= $data?->allergies ?Allergy::whereIn('id',$data?->allergies->pluck('id') )->pluck('allergy') : null;
+
+            if(self::getDeliveryFee($data->restaurant)  ==  'free_delivery'){
+                $data['free_delivery'] =  (int)  1;
+            }
+
+            $data['min_delivery_time'] =  (int) explode('-',$data->restaurant->delivery_time)[0] ?? 0;
+            $data['max_delivery_time'] =  (int) explode('-',$data->restaurant->delivery_time)[1] ?? 0;
+            $cuisine =[];
+            $cui =$data->restaurant->load('cuisine');
+            if(isset($cui->cuisine)){
+                foreach($cui->cuisine as $cu){
+                    $cuisine[]= ['id' => (int) $cu->id, 'name' => $cu->name , 'image' => $cu->image];
+                }
+            }
+
+            $data['cuisines'] =   $cuisine;
+
+            unset($data['restaurant']);
+            unset($data['rating']);
+        }
+
+        return $data;
+    }
+
+     public static function tax_calculate($food, $price)
+    {
+        if ($food['tax_type'] == 'percent') {
+            $price_tax = ($price / 100) * $food['tax'];
+        } else {
+            $price_tax = $food['tax'];
+        }
+        return $price_tax;
+    }
+
+     public static function product_discount_calculate($product, $price, $restaurant)
+    {
+        $restaurant_discount = self::get_restaurant_discount($restaurant);
+        if (isset($restaurant_discount)) {
+            $price_discount = ($price / 100) * $restaurant_discount['discount'];
+        } else if ($product['discount_type'] == 'percent') {
+            $price_discount = ($price / 100) * $product['discount'];
+        } else {
+            $price_discount = $product['discount'];
+        }
+        return $price_discount;
+    }
+
+
+    public static function getCalculatedCashBackAmount($amount,$customer_id){
+        $data=[
+            'calculated_amount'=> (float) 0,
+            'cashback_amount'=>0,
+            'cashback_type'=>'',
+            'min_purchase'=>0,
+            'max_discount'=>0,
+            'id'=>0,
+        ];
+
+        try {
+            $percent_bonus = CashBack::active()
+            ->where('cashback_type', 'percentage')
+            ->Running()
+            ->where('min_purchase', '<=', $amount)
+            ->where(function($query) use ($customer_id) {
+                $query->whereJsonContains('customer_id', [(string) $customer_id])->orWhereJsonContains('customer_id', ['all']);
+            })
+                ->when(is_numeric($customer_id), function($q) use ($customer_id){
+                $q->where('same_user_limit', '>', function($query) use ($customer_id) {
+                    $query->select(DB::raw('COUNT(*)'))
+                            ->from('cash_back_histories')
+                            ->where('user_id', $customer_id)
+                            ->whereColumn('cash_back_id', 'cash_backs.id');
+                    });
+                })
+
+            ->orderBy('cashback_amount', 'desc')
+            ->first();
+
+            $amount_bonus = CashBack::active()->where('cashback_type','amount')
+            ->Running()
+            ->where(function($query)use($customer_id){
+                $query->whereJsonContains('customer_id', [(string) $customer_id])->orWhereJsonContains('customer_id', ['all']);
+            })
+            ->where('min_purchase','<=',$amount )
+            ->when(is_numeric($customer_id), function($q) use ($customer_id){
+                $q->where('same_user_limit', '>', function($query) use ($customer_id) {
+                    $query->select(DB::raw('COUNT(*)'))
+                            ->from('cash_back_histories')
+                            ->where('user_id', $customer_id)
+                            ->whereColumn('cash_back_id', 'cash_backs.id');
+                    });
+                })
+            ->orderBy('cashback_amount','desc')->first();
+
+            if($percent_bonus && ($amount >=$percent_bonus->min_purchase)){
+                $p_bonus = ($amount  * $percent_bonus->cashback_amount)/100;
+                $p_bonus = $p_bonus > $percent_bonus->max_discount ? $percent_bonus->max_discount : $p_bonus;
+                $p_bonus = round($p_bonus,config('round_up_to_digit'));
+            }else{
+                $p_bonus = 0;
+            }
+
+            if($amount_bonus && ($amount >=$amount_bonus->min_purchase)){
+                $a_bonus = $amount_bonus?$amount_bonus->cashback_amount: 0;
+                $a_bonus = round($a_bonus,config('round_up_to_digit'));
+            }else{
+                $a_bonus = 0;
+            }
+
+            $cashback_amount = max([$p_bonus,$a_bonus]);
+
+            if($p_bonus ==  $cashback_amount){
+                $data=[
+                    'calculated_amount'=> (float)$cashback_amount,
+                    'cashback_amount'=>$percent_bonus?->cashback_amount ?? 0,
+                    'cashback_type'=>$percent_bonus?->cashback_type ?? '',
+                    'min_purchase'=>$percent_bonus?->min_purchase ?? 0,
+                    'max_discount'=>$percent_bonus?->max_discount ?? 0,
+                    'id'=>$percent_bonus?->id,
+                ];
+
+            } elseif($a_bonus == $cashback_amount){
+                $data=[
+                    'calculated_amount'=> (float)$cashback_amount,
+                    'cashback_amount'=>$amount_bonus?->cashback_amount ?? 0,
+                    'cashback_type'=>$amount_bonus?->cashback_type ?? '',
+                    'min_purchase'=>$amount_bonus?->min_purchase ?? 0,
+                    'max_discount'=>$amount_bonus?->max_discount ?? 0,
+                    'id'=>$amount_bonus?->id,
+                ];
+            }
+
+            return $data ;
+        } catch (\Exception $exception) {
+            info([$exception->getFile(),$exception->getLine(),$exception->getMessage()]);
+            return $data ;
+        }
+
+    }
+
+      public static function currency_code()
+    {
+        if (!config('currency') ){
+            $currency = BusinessSetting::where(['key' => 'currency'])->first()?->value;
+            Config::set('currency', $currency );
+        }
+            else{
+                $currency = config('currency');
+            }
+
+        return $currency;
+    }
+
+    public static function currency_symbol()
+    {
+        if (!config('currency_symbol') ){
+            $currency_symbol = Currency::where(['currency_code' => Helpers::currency_code()])->first()?->currency_symbol;
+            Config::set('currency_symbol', $currency_symbol );
+        }
+        else{
+            $currency_symbol =config('currency_symbol');
+        }
+
+        return $currency_symbol ;
+    }
+
+     public static function visitor_log($model,$user_id,$visitor_log_id,$order_count=false){
+            if( $model == 'restaurant' ){
+                $visitor_log_type = 'App\Models\Restaurant';
+            }
+            else {
+                $visitor_log_type = 'App\Models\Category';
+            }
+        VisitorLog::updateOrInsert(
+            ['visitor_log_type' => $visitor_log_type,
+                'user_id' => $user_id,
+                'visitor_log_id' => $visitor_log_id,
+            ],
+            [
+                'visit_count' => $order_count == false ? DB::raw('visit_count + 1') : DB::raw('visit_count'),
+                'order_count' =>  $order_count == true ? DB::raw('order_count + 1') : DB::raw('order_count'),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+        return;
+    }
+
+      public static function getCusromerFirstOrderDiscount($order_count, $user_creation_date,$refby, $price = null){
+
+        $data=[
+            'is_valid' => false,
+            'discount_amount' => 0,
+            'discount_amount_type' => '',
+            'validity' => '',
+            'calculated_amount' => 0,
+        ];
+        if($order_count > 0 || !$refby){
+            return $data?? [];
+        }
+        $settings =  array_column(BusinessSetting::whereIn('key',['new_customer_discount_status','new_customer_discount_amount','new_customer_discount_amount_type','new_customer_discount_amount_validity','new_customer_discount_validity_type',])->get()->toArray(), 'value', 'key');
+
+        $validity_value = data_get($settings,'new_customer_discount_amount_validity');
+        $validity_unit = data_get($settings,'new_customer_discount_validity_type');
+
+        if($validity_unit == 'day'){
+            $validity_end_date = (new DateTime($user_creation_date))->modify("+$validity_value day");
+
+        } elseif($validity_unit == 'month'){
+            $validity_end_date = (new DateTime($user_creation_date))->modify("+$validity_value month");
+
+        } elseif($validity_unit == 'year'){
+            $validity_end_date = (new DateTime($user_creation_date))->modify("+$validity_value year");
+        }
+        else{
+            $validity_end_date = (new DateTime($user_creation_date))->modify("-1 day");
+        }
+
+        $is_valid=false;
+        $current_date = new DateTime();
+        if($validity_end_date >= $current_date){
+        $is_valid=true;
+        }
+
+
+
+    if($order_count == 0 && $is_valid && data_get($settings,'new_customer_discount_status' ) == 1 && data_get($settings,'new_customer_discount_amount' ) > 0 ){
+        $calculated_amount=0;
+        if(data_get($settings,'new_customer_discount_amount_type') == 'percentage' && isset($price)){
+            $calculated_amount= ($price / 100) * data_get($settings,'new_customer_discount_amount');
+        } else{
+            $calculated_amount=data_get($settings,'new_customer_discount_amount');
+        }
+
+        $data=[
+            'is_valid' => $is_valid,
+            'discount_amount' => data_get($settings,'new_customer_discount_amount'),
+            'discount_amount_type' => data_get($settings,'new_customer_discount_amount_type'),
+            'validity' => data_get($settings,'new_customer_discount_amount_validity') .' '. translate(Str::plural((data_get($settings,'new_customer_discount_validity_type') ?? 'day'),data_get($settings,'new_customer_discount_amount_validity'))),
+            'calculated_amount' => round($calculated_amount,config('round_up_to_digit')),
+        ];
+    }
+
+    return $data?? [];
+    }
+
+
+
+     public static function product_tax($price , $tax, $is_include=false){
+        $price_tax = ($price * $tax) / (100 + ($is_include?$tax:0)) ;
+        return $price_tax;
+    }
+
+
 
 }
