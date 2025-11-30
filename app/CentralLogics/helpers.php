@@ -1320,5 +1320,61 @@ class Helpers
         return true;
     }
 
+    public static function deliverymen_data_formatting($data)
+    {
+        $storage = [];
+        foreach ($data as $item) {
+            $item['avg_rating'] = (float)(count($item->rating) ? (float)$item->rating[0]->average : 0);
+            $item['rating_count'] = (int)(count($item->rating) ? $item->rating[0]->rating_count : 0);
+            $item['lat'] = $item->last_location ? $item->last_location->latitude : null;
+            $item['lng'] = $item->last_location ? $item->last_location->longitude : null;
+            $item['location'] = $item->last_location ? $item->last_location->location : null;
 
+            if ($item['rating']) {
+                unset($item['rating']);
+            }
+            if ($item['last_location']) {
+                unset($item['last_location']);
+            }
+            $storage[] = $item;
+        }
+        $data = $storage;
+
+        return $data;
+    }
+
+
+      public static function offline_payment_formater($user_data){
+        $userInputs = [];
+
+        $user_inputes=  json_decode($user_data->payment_info, true);
+        $method_name= $user_inputes['method_name'];
+        $method_id= $user_inputes['method_id'];
+
+        foreach ($user_inputes as $key => $value) {
+            if(!in_array($key,['method_name','method_id'])){
+                $userInput = [
+                'user_input' => $key,
+                'user_data' => $value,
+                ];
+                $userInputs[] = $userInput;
+            }
+        }
+
+        $data = [
+        'status' => $user_data->status,
+        'method_id' => $method_id,
+        'method_name' => $method_name,
+        'customer_note' => $user_data->customer_note,
+        'admin_note' => $user_data->note,
+        ];
+
+        $result = [
+        'input' => $userInputs,
+        'data' => $data,
+        'method_fields' =>json_decode($user_data->method_fields ,true),
+        ];
+
+        return $result;
+    }
 }

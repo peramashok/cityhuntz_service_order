@@ -59,7 +59,7 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
             Route::post('cancel', 'cancel_order');
             // Route::post('refund-request', 'OrderController@refund_request');
             // Route::get('refund-reasons', 'OrderController@refund_reasons');
-            // Route::get('track', 'OrderController@track_order');
+            Route::get('track', 'track_order');
             // Route::put('payment-method', 'OrderController@update_payment_method');
             // Route::put('offline-payment', 'OrderController@offline_payment');
             // Route::put('offline-payment-update', 'OrderController@update_offline_payment_info');

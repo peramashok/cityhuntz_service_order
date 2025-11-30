@@ -28,7 +28,8 @@ use App\Models\CashBack;
 use App\Models\Cart;
 use Illuminate\Support\Facades\DB;
 use MatanYadaev\EloquentSpatial\Objects\Point;
-
+use App\Models\DMReview;
+use App\Models\Review;
 
 class OrdersController extends Controller
 {
@@ -150,11 +151,7 @@ class OrdersController extends Controller
         ->with('details')
         ->Notpos()->first();
         if(!$order){
-                return response()->json([
-                    'errors' => [
-                        ['code' => 'order', 'message' => translate('messages.not_found')]
-                    ]
-                ], 404);
+                return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.not_found')], 400);
         }
         else if ($order->order_status == 'pending' || $order->order_status == 'failed' || $order->order_status == 'canceled'  ) {
             $order->order_status = 'canceled';
@@ -177,20 +174,15 @@ class OrdersController extends Controller
                 if($wallet_status &&  $refund_to_wallet && $refund_amount > 0){
                     CustomerLogic::create_wallet_transaction(user_id:$order->user_id, amount:$refund_amount,transaction_type: 'order_refund',referance: $order->id);
 
-                    return response()->json(['message' => translate('messages.order_canceled_successfully_and_refunded_to_wallet')], 200);
+                    return response()->json(['status'=>'failed', 'message' => translate('messages.order_canceled_successfully_and_refunded_to_wallet')], 200);
                 } else {
-                    return response()->json(['message' => translate('messages.order_canceled_successfully_and_for_refund_amount_contact_admin')], 200);
+                    return response()->json(['status'=>'failed', 'message' => translate('messages.order_canceled_successfully_and_for_refund_amount_contact_admin')], 200);
                 }
             }
 
-
-            return response()->json(['message' => translate('messages.order_canceled_successfully')], 200);
+            return response()->json(['status'=>'failed', 'message' => translate('messages.order_canceled_successfully')], 200);
         }
-        return response()->json([
-            'errors' => [
-                ['code' => 'order', 'message' => translate('messages.you_can_not_cancel_after_confirm')]
-            ]
-        ], 403);
+        return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.you_can_not_cancel_after_confirm')], 403);
     }
 
   public function place_order(Request $request)
@@ -213,48 +205,28 @@ class OrdersController extends Controller
             ]);
 
             if ($validator->fails()) {
-                return response()->json(['errors' => Helpers::error_processor($validator)], 403);
+                return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
             }
             if($request->payment_method == 'wallet' && Helpers::get_business_settings('wallet_status', false) != 1)
             {
-                return response()->json([
-                    'errors' => [
-                        ['code' => 'payment_method', 'message' => translate('messages.customer_wallet_disable_warning')]
-                    ]
-                ], 203);
+                return response()->json( ['status'=>'failed', 'code' => 'payment_method', 'message' => translate('messages.customer_wallet_disable_warning')], 203);
             }
 
             if($request->partial_payment && Helpers::get_mail_status('partial_payment_status') == 0){
-                return response()->json([
-                    'errors' => [
-                        ['code' => 'order_method', 'message' => translate('messages.partial_payment_is_not_active')]
-                    ]
-                ], 403);
+                return response()->json( ['status'=>'failed','code' => 'order_method', 'message' => translate('messages.partial_payment_is_not_active')], 403);
             }
 
             if ($request->payment_method == 'offline_payment' &&  Helpers::get_mail_status('offline_payment_status') == 0) {
-                return response()->json([
-                    'errors' => [
-                        ['code' => 'offline_payment_status', 'message' => translate('messages.offline_payment_for_the_order_not_available_at_this_time')]
-                    ]
-                ], 403);
+                return response()->json( ['status'=>'failed', 'code' => 'offline_payment_status', 'message' => translate('messages.offline_payment_for_the_order_not_available_at_this_time')], 403);
             }
 
             $digital_payment = Helpers::get_business_settings('digital_payment');
             if($digital_payment['status'] == 0 && $request->payment_method == 'digital_payment'){
-                return response()->json([
-                    'errors' => [
-                        ['code' => 'digital_payment', 'message' => translate('messages.digital_payment_for_the_order_not_available_at_this_time')]
-                    ]
-                ], 403);
+                return response()->json( ['status'=>'failed','code' => 'digital_payment', 'message' => translate('messages.digital_payment_for_the_order_not_available_at_this_time')], 403);
             }
 
             if($request->is_guest && !Helpers::get_mail_status('guest_checkout_status')){
-                return response()->json([
-                    'errors' => [
-                        ['code' => 'is_guest', 'message' => translate('messages.Guest_order_is_not_active')]
-                    ]
-                ], 403);
+                return response()->json(['status'=>'failed', 'code' => 'is_guest', 'message' => translate('messages.Guest_order_is_not_active')], 403);
             }
 
             $coupon = null;
@@ -284,40 +256,24 @@ class OrdersController extends Controller
 
             $home_delivery = BusinessSetting::where('key', 'home_delivery')->first()?->value ?? null;
             if ($home_delivery == null && $request->order_type == 'delivery') {
-                return response()->json([
-                    'errors' => [
-                        ['code' => 'order_type', 'message' => translate('messages.Home_delivery_is_disabled')]
-                    ]
-                ], 403);
+                return response()->json(['status'=>'failed','code' => 'order_type', 'message' => translate('messages.Home_delivery_is_disabled')], 403);
             }
 
             $take_away = BusinessSetting::where('key', 'take_away')->first()?->value ?? null;
             if ($take_away == null && $request->order_type == 'take_away') {
-                return response()->json([
-                    'errors' => [
-                        ['code' => 'order_type', 'message' => translate('messages.Take_away_is_disabled')]
-                    ]
-                ], 403);
+                return response()->json(['status'=>'failed', 'code' => 'order_type', 'message' => translate('messages.Take_away_is_disabled')], 403);
             }
 
             $settings =  BusinessSetting::where('key', 'cash_on_delivery')->first();
             $cod = json_decode($settings?->value, true);
             if(isset($cod['status']) &&  $cod['status'] != 1 && $request->payment_method == 'cash_on_delivery'){
-                return response()->json([
-                    'errors' => [
-                        ['code' => 'order_time', 'message' => translate('messages.Cash_on_delivery_is_not_active')]
-                    ]
-                ], 403);
+                return response()->json(['status'=>'failed','code' => 'order_time', 'message' => translate('messages.Cash_on_delivery_is_not_active')], 403);
 
             }
 
             if($request->schedule_at && $schedule_at < now())
             {
-                return response()->json([
-                    'errors' => [
-                        ['code' => 'order_time', 'message' => translate('messages.you_can_not_schedule_a_order_in_past')]
-                    ]
-                ], 406);
+                return response()->json(['status'=>'failed','code' => 'order_time', 'message' => translate('messages.you_can_not_schedule_a_order_in_past')], 406);
             }
 
             $result=array();
@@ -329,15 +285,18 @@ class OrdersController extends Controller
 
                 $result=$this->orderSingleRestaurant($request, $restaurantId, $dataArray);
 
-                if($result['status']=='faile'){
+                if($result['status']=='failed' && count($orderResult)==0){
+                     return response()->json($result, 400);
+                } if($result['status']=='failed' && count($orderResult)==1){
+                     $result['order_result']=$orderResult[0];
                      return response()->json($result, 400);
                 } else {
                     $orderResult[]=$result;
                 }
             }
 
-
             return response()->json([
+                'status'=>'success',
                 "orders"=>$orderResult
             ], 200);
 
@@ -910,4 +869,53 @@ class OrdersController extends Controller
         return true;
     }
      
+
+    /**
+     * track orders list for ve
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Resp
+     */
+    public function track_order(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'order_id' => 'required',
+            'guest_id' => $request->user ? 'nullable' : 'required',
+            'contact_number' => $request->user ? 'nullable' : 'required',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => Helpers::error_processor($validator)], 403);
+        }
+        $user_id = $request->user ? $request->user->id : $request['guest_id'];
+
+        $order = Order::with(['restaurant','restaurant.restaurant_sub', 'refund', 'delivery_man', 'delivery_man.rating','subscription','payments'])->withCount('details')->where(['id' => $request['order_id'], 'user_id' => $user_id])
+        ->when(!$request->user, function ($query) use ($request) {
+            return $query->whereJsonContains('delivery_address->contact_person_number', $request['contact_number']);
+        })
+        ->Notpos()->first();
+
+        if($order){
+            $order['restaurant'] = $order['restaurant'] ? Helpers::restaurant_data_formatting($order['restaurant']): $order['restaurant'];
+            $order['delivery_address'] = $order['delivery_address']?json_decode($order['delivery_address'],true):$order['delivery_address'];
+            $order['delivery_man'] = $order['delivery_man']?Helpers::deliverymen_data_formatting([$order['delivery_man']]):$order['delivery_man'];
+            $order['offline_payment'] =  isset($order->offline_payments) ? Helpers::offline_payment_formater($order->offline_payments) : null;
+            $order['is_reviewed'] =   $order->details_count >  Review::whereOrderId($request->order_id)->count() ? False :True ;
+            $order['is_dm_reviewed'] =  $order?->delivery_man ? DMReview::whereOrderId($order->id)->exists()  : True ;
+
+            if($order->subscription){
+                $order->subscription['delivered_count']= (int) $order->subscription->logs()->whereOrderStatus('delivered')->count();
+                $order->subscription['canceled_count']= (int) $order->subscription->logs()->whereOrderStatus('canceled')->count();
+            }
+
+            unset($order['offline_payments']);
+            unset($order['details']);
+        } else{
+            return response()->json([
+                'errors' => [
+                    ['code' => 'order_not_found', 'message' => translate('messages.Order_not_found')]
+                ]
+            ], 404);
+        }
+        return response()->json($order, 200);
+    }
 }
