@@ -10,6 +10,7 @@ use DateInterval;
 use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
 use App\Models\BusinessSetting;
+use App\Models\Category;
 use App\Models\PaymentSetting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\App;
@@ -27,6 +28,12 @@ use MatanYadaev\EloquentSpatial\Objects\Point;
 use App\Models\Coupon;
 use App\CentralLogics\RestaurantLogic;
 use App\Models\VariationOption;
+use App\Models\AddOn;
+use App\Models\Vehicle;
+use App\CentralLogics\CouponLogic;
+use App\Models\Currency;
+use App\Models\VisitorLog;
+use App\Models\CashBack;
 
 class Helpers
 { 
@@ -621,24 +628,753 @@ class Helpers
      public static function decreaseSellCount($order_details){
         foreach ($order_details as $detail) {
             $optionIds=[];
+            $detail->variation=$detail->variation!='' ? $detail->variation : []; 
             if($detail->variation != '[]'){
-                foreach (json_decode($detail->variation, true) as $value) {
-                    foreach (data_get($value,'values' ,[]) as $item) {
-                        if(data_get($item, 'option_id', null ) != null){
-                            $optionIds[] = data_get($item, 'option_id', null );
+                if(count($detail->variation)>0){
+                    foreach (json_decode($detail->variation, true) as $value) {
+                        foreach (data_get($value,'values' ,[]) as $item) {
+                            if(data_get($item, 'option_id', null ) != null){
+                                $optionIds[] = data_get($item, 'option_id', null );
+                            }
                         }
                     }
+                    VariationOption::whereIn('id', $optionIds)->where('sell_count', '>', 0)->decrement('sell_count' ,$detail->quantity);
                 }
-                VariationOption::whereIn('id', $optionIds)->where('sell_count', '>', 0)->decrement('sell_count' ,$detail->quantity);
             }
             $detail->food()->where('sell_count', '>', 0)->decrement('sell_count' ,$detail->quantity);
-
-            foreach (json_decode($detail->add_ons, true) as $add_ons) {
-                if(data_get($add_ons, 'id', null ) != null){
-                AddOn::where('id',data_get($add_ons, 'id', null ))->where('sell_count', '>', 0)->decrement('sell_count' ,data_get($add_ons, 'quantity', 1 ));
+            if($detail->add_ons!='' && count($detail->add_ons)>0){
+                foreach (json_decode($detail->add_ons, true) as $add_ons) {
+                    if(data_get($add_ons, 'id', null ) != null){
+                    AddOn::where('id',data_get($add_ons, 'id', null ))->where('sell_count', '>', 0)->decrement('sell_count' ,data_get($add_ons, 'quantity', 1 ));
+                    }
                 }
             }
         }
         return true;
+    }
+
+
+    public static function addonAndVariationStockCheck($product, $quantity=1, $add_on_qtys=1, $variation_options=null,$add_on_ids= null ,$incrementCount = false ,$old_selected_variations=[] ,$old_selected_without_variation = 0,$old_selected_addons=[]){
+
+        if($product?->stock_type && $product?->stock_type !== 'unlimited'){
+            $availableMainStock=$product->item_stock + $old_selected_without_variation ;
+            if(  $availableMainStock <= 0 || $availableMainStock < $quantity  ){
+                return [
+                    'out_of_stock' =>$availableMainStock > 0 ? translate('Only') .' '.$availableMainStock . " ". translate('Quantity_is_abailable_for').' '.$product?->name : $product?->name.' ' . translate('is_out_of_stock_!!!') ,
+                    'id'=>$product->id,
+                'current_stock' =>  $availableMainStock > 0 ?  $availableMainStock : 0,
+                ];
+            }
+            if($product?->stock_type && $incrementCount == true){
+                $product->increment('sell_count',$quantity);
+            }
+
+            if(is_array($variation_options) && (data_get($variation_options,0) != ''|| data_get($variation_options,0)  != null)) {
+                $variation_options= VariationOption::whereIn('id', $variation_options)->get();
+                foreach($variation_options as $variation_option){
+                        if($variation_option->stock_type !== 'unlimited'){
+                            $availableStock=$variation_option->total_stock  - $variation_option->sell_count;
+                            if(is_array($old_selected_variations) && data_get($old_selected_variations, $variation_option->id) ){
+                                $availableStock= $availableStock + data_get($old_selected_variations, $variation_option->id);
+                            }
+                            if($availableStock <= 0 || $availableStock < $quantity){
+                                return ['out_of_stock' => $availableStock > 0 ? translate('Only') .' '.$availableStock . " ". translate('Quantity_is_abailable_for').' '.$product?->name.' \'s ' . $variation_option->option_name .' ' . translate('Variation_!!!') : $product?->name.' \'s ' . $variation_option->option_name .' ' . translate('Variation_is_out_of_stock_!!!') ,
+                                        'id'=>$variation_option->id,
+                                        'current_stock' =>  $availableStock > 0 ?  $availableStock : 0,
+                                        ];
+                            }
+                            if($incrementCount == true){
+                                $variation_option->increment('sell_count',$quantity);
+                            }
+                        }
+                    }
+            }
+        }
+
+        if(is_array($add_on_ids) && count($add_on_ids) > 0) {
+            return  Helpers::calculate_addon_price(addons: AddOn::whereIn('id',$add_on_ids)->get(), add_on_qtys: $add_on_qtys ,incrementCount:$incrementCount ,old_selected_addons:$old_selected_addons);
+        }
+        return null;
+    }
+
+
+
+  public static function calculate_addon_price($addons, $add_on_qtys , $incrementCount = false ,$old_selected_addons =[])
+    {
+        $add_ons_cost = 0;
+        $data = [];
+        if ($addons) {
+            foreach ($addons as $key2 => $addon) {
+                if ($add_on_qtys == null) {
+                    $add_on_qty = 1;
+                } else {
+                    $add_on_qty = $add_on_qtys[$key2];
+                }
+                // if($add_on_qty > 0 ){
+                    if($addon->stock_type != 'unlimited'){
+
+                        $availableStock=$addon->addon_stock;
+
+                        if(data_get($old_selected_addons, $addon->id)){
+                            $availableStock= $availableStock + data_get($old_selected_addons, $addon->id);
+                        }
+
+                        if(  $availableStock <= 0 || $availableStock < $add_on_qty  ){
+                            return ['out_of_stock' => $addon->name .' ' . translate('Addon_is_out_of_stock_!!!'),
+                            'id'=>$addon->id,
+                            'current_stock' =>   $availableStock > 0 ?  $availableStock : 0 ,
+                            'type'=>'addon'
+                        ];
+                        }
+                    }
+                    if($incrementCount == true){
+                        $addon->increment('sell_count' ,$add_on_qty);
+                    }
+                // }
+
+                $data[] = ['id' => $addon->id, 'name' => $addon->name, 'price' => $addon->price, 'quantity' => $add_on_qty];
+                $add_ons_cost += $addon['price'] * $add_on_qty;
+            }
+            return ['addons' => $data, 'total_add_on_price' => $add_ons_cost];
+        }
+        return null;
+    }
+
+
+   public static function cart_product_data_formatting($data, $selected_variation=[], $selected_addons=[], $selected_addon_quantity=[],$trans = false, $local = 'en')
+    {
+
+        $variations = [];
+        $categories = [];
+        $category_ids = gettype($data['category_ids']) == 'array' ? $data['category_ids'] : json_decode($data['category_ids'],true);
+        foreach ($category_ids as $value) {
+            $category_name = Category::where('id',$value['id'])->pluck('name');
+            $categories[] = ['id' => (string)$value['id'], 'position' => $value['position'], 'name'=>data_get($category_name,'0','NA')];
+        }
+        $data['category_ids'] = $categories;
+
+        $add_ons = gettype($data['add_ons']) == 'array' ? $data['add_ons'] : json_decode($data['add_ons'],true);
+        $data_addons = self::addon_data_formatting(AddOn::whereIn('id', $add_ons)->active()->get(), true, $trans, $local);
+
+
+         // FIX: ensure both variables are arrays
+        $selected_addons = is_array($selected_addons) ? $selected_addons : [];
+        $selected_addon_quantity = is_array($selected_addon_quantity) ? $selected_addon_quantity : [];
+        $selected_variation = is_array($selected_variation) ? $selected_variation : [];
+
+        $selected_data = array_combine($selected_addons, $selected_addon_quantity);
+        foreach ($data_addons as $addon) {
+            $addon_id = $addon['id'];
+            if (in_array($addon_id, $selected_addons)) {
+                $addon['isChecked'] = true;
+                $addon['quantity'] = $selected_data[$addon_id];
+            } else {
+                $addon['isChecked'] = false;
+                $addon['quantity'] = 0;
+            }
+        }
+        $data['addons'] = $data_addons;
+
+        if ($data->title) {
+            $data['name'] = $data->title;
+            unset($data['title']);
+        }
+        if ($data->start_time) {
+            $data['available_time_starts'] = $data->start_time->format('H:i');
+            unset($data['start_time']);
+        }
+        if ($data->end_time) {
+            $data['available_time_ends'] = $data->end_time->format('H:i');
+            unset($data['end_time']);
+        }
+        if ($data->start_date) {
+            $data['available_date_starts'] = $data->start_date->format('Y-m-d');
+            unset($data['start_date']);
+        }
+        if ($data->end_date) {
+            $data['available_date_ends'] = $data->end_date->format('Y-m-d');
+            unset($data['end_date']);
+        }
+        $data_variation = $data['variations']?(gettype($data['variations']) == 'array' ? $data['variations'] : json_decode($data['variations'],true)):[];
+        
+        foreach ($selected_variation as $item1) {
+            foreach ($data_variation as &$item2) {
+                if ($item1["name"] === $item2["name"]) {
+                    foreach ($item2["values"] as &$value) {
+                        if (in_array($value["label"], $item1["values"]["label"])) {
+                            $value["isSelected"] = true;
+                        }else{
+                            $value["isSelected"] = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        $data['variations'] = $data_variation;
+        $data['restaurant_name'] = $data->restaurant->name;
+        $data['restaurant_status'] = (int) $data->restaurant->status;
+        $data['restaurant_discount'] = self::get_restaurant_discount($data->restaurant) ? $data->restaurant->discount->discount : 0;
+        $data['restaurant_opening_time'] = $data->restaurant->opening_time ? $data->restaurant->opening_time->format('H:i') : null;
+        $data['restaurant_closing_time'] = $data->restaurant->closeing_time ? $data->restaurant->closeing_time->format('H:i') : null;
+        $data['schedule_order'] = $data->restaurant->schedule_order;
+        $data['rating_count'] = (int)($data->rating ? array_sum(json_decode($data->rating, true)) : 0);
+        $data['avg_rating'] = (float)($data->avg_rating ? $data->avg_rating : 0);
+        $data['recommended'] =(int) $data->recommended;
+
+        $data['halal_tag_status'] =  (int) $data->restaurant->restaurant_config?->halal_tag_status??0;
+        $data['nutritions_name']= $data?->nutritions ? Nutrition::whereIn('id',$data?->nutritions->pluck('id') )->pluck('nutrition') : null;
+        $data['allergies_name']= $data?->allergies ?Allergy::whereIn('id',$data?->allergies->pluck('id') )->pluck('allergy') : null;
+        $data['free_delivery'] =  (int) $data->restaurant->free_delivery ?? 0;
+        $data['min_delivery_time'] =  (int) explode('-',$data->restaurant->delivery_time)[0] ?? 0;
+        $data['max_delivery_time'] =  (int) explode('-',$data->restaurant->delivery_time)[1] ?? 0;
+        $cuisine =[];
+        $cui =$data->restaurant->load('cuisine');
+        if(isset($cui->cuisine)){
+            foreach($cui->cuisine as $cu){
+                $cuisine[]= ['id' => (int) $cu->id, 'name' => $cu->name , 'image' => $cu->image];
+            }
+        }
+
+        $data['cuisines'] =   $cuisine;
+
+        unset($data['restaurant']);
+        unset($data['rating']);
+
+
+        return $data;
+    }
+
+
+     public static function addon_data_formatting($data, $multi_data = false, $trans = false, $local = 'en')
+    {
+        $storage = [];
+        if ($multi_data == true) {
+            foreach ($data as $item) {
+                if ($trans) {
+                    $item['translations'][] = [
+                        'translationable_type' => 'App\Models\AddOn',
+                        'translationable_id' => $item->id,
+                        'locale' => 'en',
+                        'key' => 'name',
+                        'value' => $item->name
+                    ];
+                }
+                $storage[] = $item;
+            }
+            $data = $storage;
+        } else if (isset($data)) {
+            if ($trans) {
+                $data['translations'][] = [
+                    'translationable_type' => 'App\Models\AddOn',
+                    'translationable_id' => $data->id,
+                    'locale' => 'en',
+                    'key' => 'name',
+                    'value' => $data->name
+                ];
+            }
+        }
+        return $data;
+    }
+
+
+    public static function vehicle_extra_charge(float $distance_data) {
+        $data =[];
+        $vehicle = Vehicle::active()
+        ->where(function ($query) use ($distance_data) {
+            $query->where('starting_coverage_area', '<=', $distance_data)->where('maximum_coverage_area', '>=', $distance_data)
+            ->orWhere(function ($query) use ($distance_data) {
+                $query->where('starting_coverage_area', '>=', $distance_data);
+            });
+        })->orderBy('starting_coverage_area')->first();
+        if(empty($vehicle)){
+            $vehicle = Vehicle::active()->orderBy('maximum_coverage_area', 'desc')->first();
+        }
+        $data['extra_charge'] = $vehicle->extra_charges  ?? 0;
+        $data['vehicle_id'] =  $vehicle->id  ?? null;
+        return $data;
+    }
+
+    public static function get_varient(array $product_variations, array $variations)
+    {
+        $result = [];
+        $variation_price = 0;
+
+        foreach($variations as $k=> $variation){
+            foreach($product_variations as  $product_variation){
+                if( isset($variation['values']) && isset($product_variation['values']) && $product_variation['name'] == $variation['name']  ){
+                    $result[$k] = $product_variation;
+                    $result[$k]['values'] = [];
+                    foreach($product_variation['values'] as $key=> $option){
+                        if(in_array($option['label'], $variation['values']['label'])){
+                            $result[$k]['values'][] = $option;
+                            $variation_price += $option['optionPrice'];
+                        }
+                    }
+                }
+            }
+        }
+
+        return ['price'=>$variation_price,'variations'=>array_values($result)];
+      }
+
+ public static function product_data_formatting($data, $multi_data = false, $trans = false, $local = 'en')
+    {
+        $storage = [];
+        if ($multi_data == true) {
+            foreach ($data as $item) {
+                $variations = [];
+                if ($item->title) {
+                    $item['name'] = $item->title;
+                    unset($item['title']);
+                }
+                if ($item->start_time) {
+                    $item['available_time_starts'] = $item->start_time->format('H:i');
+                    unset($item['start_time']);
+                }
+                if ($item->end_time) {
+                    $item['available_time_ends'] = $item->end_time->format('H:i');
+                    unset($item['end_time']);
+                }
+
+                if ($item->start_date) {
+                    $item['available_date_starts'] = $item->start_date->format('Y-m-d');
+                    unset($item['start_date']);
+                }
+                if ($item->end_date) {
+                    $item['available_date_ends'] = $item->end_date->format('Y-m-d');
+                    unset($item['end_date']);
+                }
+                $item['recommended'] =(int) $item->recommended;
+                $categories = [];
+                foreach (json_decode($item?->category_ids) as $value) {
+                    $categories[] = ['id' => (string)$value->id, 'position' => $value->position];
+                }
+                $item['category_ids'] = $categories;
+                // $item['attributes'] = json_decode($item['attributes']);
+                // $item['choice_options'] = json_decode($item['choice_options']);
+                $item['add_ons'] = self::addon_data_formatting(AddOn::whereIn('id', json_decode($item['add_ons']))->active()->get(), true, $trans, $local);
+                $item['tags'] = $item->tags;
+                $item['variations'] = json_decode($item['variations'], true);
+                $item['restaurant_name'] = $item->restaurant->name;
+                $item['restaurant_status'] = (int) $item->restaurant->status;
+                $item['restaurant_discount'] = self::get_restaurant_discount($item->restaurant) ? $item->restaurant->discount->discount : 0;
+                $item['restaurant_opening_time'] = $item->restaurant->opening_time ? $item->restaurant->opening_time->format('H:i') : null;
+                $item['restaurant_closing_time'] = $item->restaurant->closeing_time ? $item->restaurant->closeing_time->format('H:i') : null;
+                $item['schedule_order'] = $item->restaurant->schedule_order;
+                $item['tax'] = $item->restaurant->tax;
+                try {
+                    $reviewsInfo = $item->rating()->first();
+                } catch (\Exception $e) {
+                    $reviewsInfo = null;
+                }
+                $item['rating_count'] = $reviewsInfo?->rating_count ?? 0;
+                $item['avg_rating'] = $reviewsInfo?->average ?? 0;
+                $item['min_delivery_time'] =  (int) explode('-',$item->restaurant->delivery_time)[0] ?? 0;
+                $item['max_delivery_time'] =  (int) explode('-',$item->restaurant->delivery_time)[1] ?? 0;
+
+
+                if( $item->restaurant->restaurant_model == 'subscription'  && isset($item->restaurant->restaurant_sub)){
+                    $item->restaurant['self_delivery_system'] = (int) $item->restaurant->restaurant_sub->self_delivery;
+                }
+
+                $item['free_delivery'] =  (int) $item->restaurant->free_delivery ?? 0;
+                $item['halal_tag_status'] =  (int) $item->restaurant->restaurant_config?->halal_tag_status??0;
+                $item['nutritions_name']= $item?->nutritions ? Nutrition::whereIn('id',$item?->nutritions->pluck('id') )->pluck('nutrition') : null;
+                $item['allergies_name']= $item?->allergies ?Allergy::whereIn('id',$item?->allergies->pluck('id') )->pluck('allergy') : null;
+
+               if(self::getDeliveryFee($item->restaurant)  ==  'free_delivery'){
+                    $item['free_delivery'] =  (int)  1;
+               }
+
+                $cuisine =[];
+                $cui =$item->restaurant->load('cuisine');
+                if(isset($cui->cuisine)){
+                    foreach($cui->cuisine as $cu){
+                        $cuisine[]= ['id' => (int) $cu->id, 'name' => $cu->name , 'image' => $cu->image];
+                    }
+                }
+
+                $item['cuisines'] =   $cuisine;
+
+
+                unset($item['restaurant']);
+                unset($item['rating']);
+                array_push($storage, $item);
+            }
+            $data = $storage;
+        } else {
+            $variations = [];
+            $categories = [];
+            foreach (json_decode($data?->category_ids) as $value) {
+                $categories[] = ['id' => (string)$value->id, 'position' => $value->position];
+            }
+            $data['category_ids'] = $categories;
+
+            $data['add_ons'] = self::addon_data_formatting(AddOn::whereIn('id', json_decode($data['add_ons']))->active()->get(), true, $trans, $local);
+            if ($data->title) {
+                $data['name'] = $data->title;
+                unset($data['title']);
+            }
+            if ($data->start_time) {
+                $data['available_time_starts'] = $data->start_time->format('H:i');
+                unset($data['start_time']);
+            }
+            if ($data->end_time) {
+                $data['available_time_ends'] = $data->end_time->format('H:i');
+                unset($data['end_time']);
+            }
+            if ($data->start_date) {
+                $data['available_date_starts'] = $data->start_date->format('Y-m-d');
+                unset($data['start_date']);
+            }
+            if ($data->end_date) {
+                $data['available_date_ends'] = $data->end_date->format('Y-m-d');
+                unset($data['end_date']);
+            }
+            $data['variations'] = json_decode($data['variations'], true);
+            $data['restaurant_name'] = $data->restaurant->name;
+            $data['restaurant_status'] = (int) $data->restaurant->status;
+            $data['restaurant_discount'] = self::get_restaurant_discount($data->restaurant) ? $data->restaurant->discount->discount : 0;
+            $data['restaurant_opening_time'] = $data->restaurant->opening_time ? $data->restaurant->opening_time->format('H:i') : null;
+            $data['restaurant_closing_time'] = $data->restaurant->closeing_time ? $data->restaurant->closeing_time->format('H:i') : null;
+            $data['schedule_order'] = $data->restaurant->schedule_order;
+                try {
+                    $reviewsInfo = $data->rating()->first();
+                } catch (\Exception $e) {
+                    $reviewsInfo = null;
+                }
+                $data['rating_count'] = $reviewsInfo?->rating_count ?? 0;
+                $data['avg_rating'] = $reviewsInfo?->average ?? 0;
+            $data['recommended'] =(int) $data->recommended;
+
+
+
+            if( $data->restaurant->restaurant_model == 'subscription'  && isset($data->restaurant->restaurant_sub)){
+                $data->restaurant['self_delivery_system'] = (int) $data->restaurant->restaurant_sub->self_delivery;
+            }
+
+            $data['free_delivery'] =  (int) $data->restaurant->free_delivery ?? 0;
+            $data['halal_tag_status'] =  (int) $data->restaurant->restaurant_config?->halal_tag_status??0;
+            $data['nutritions_name']= $data?->nutritions ? Nutrition::whereIn('id',$data?->nutritions->pluck('id') )->pluck('nutrition') : null;
+            $data['allergies_name']= $data?->allergies ?Allergy::whereIn('id',$data?->allergies->pluck('id') )->pluck('allergy') : null;
+
+            if(self::getDeliveryFee($data->restaurant)  ==  'free_delivery'){
+                $data['free_delivery'] =  (int)  1;
+            }
+
+            $data['min_delivery_time'] =  (int) explode('-',$data->restaurant->delivery_time)[0] ?? 0;
+            $data['max_delivery_time'] =  (int) explode('-',$data->restaurant->delivery_time)[1] ?? 0;
+            $cuisine =[];
+            $cui =$data->restaurant->load('cuisine');
+            if(isset($cui->cuisine)){
+                foreach($cui->cuisine as $cu){
+                    $cuisine[]= ['id' => (int) $cu->id, 'name' => $cu->name , 'image' => $cu->image];
+                }
+            }
+
+            $data['cuisines'] =   $cuisine;
+
+            unset($data['restaurant']);
+            unset($data['rating']);
+        }
+
+        return $data;
+    }
+
+     public static function tax_calculate($food, $price)
+    {
+        if ($food['tax_type'] == 'percent') {
+            $price_tax = ($price / 100) * $food['tax'];
+        } else {
+            $price_tax = $food['tax'];
+        }
+        return $price_tax;
+    }
+
+     public static function product_discount_calculate($product, $price, $restaurant)
+    {
+        $restaurant_discount = self::get_restaurant_discount($restaurant);
+        if (isset($restaurant_discount)) {
+            $price_discount = ($price / 100) * $restaurant_discount['discount'];
+        } else if ($product['discount_type'] == 'percent') {
+            $price_discount = ($price / 100) * $product['discount'];
+        } else {
+            $price_discount = $product['discount'];
+        }
+        return $price_discount;
+    }
+
+
+    public static function getCalculatedCashBackAmount($amount,$customer_id){
+        $data=[
+            'calculated_amount'=> (float) 0,
+            'cashback_amount'=>0,
+            'cashback_type'=>'',
+            'min_purchase'=>0,
+            'max_discount'=>0,
+            'id'=>0,
+        ];
+
+        try {
+            $percent_bonus = CashBack::active()
+            ->where('cashback_type', 'percentage')
+            ->Running()
+            ->where('min_purchase', '<=', $amount)
+            ->where(function($query) use ($customer_id) {
+                $query->whereJsonContains('customer_id', [(string) $customer_id])->orWhereJsonContains('customer_id', ['all']);
+            })
+                ->when(is_numeric($customer_id), function($q) use ($customer_id){
+                $q->where('same_user_limit', '>', function($query) use ($customer_id) {
+                    $query->select(DB::raw('COUNT(*)'))
+                            ->from('cash_back_histories')
+                            ->where('user_id', $customer_id)
+                            ->whereColumn('cash_back_id', 'cash_backs.id');
+                    });
+                })
+
+            ->orderBy('cashback_amount', 'desc')
+            ->first();
+
+            $amount_bonus = CashBack::active()->where('cashback_type','amount')
+            ->Running()
+            ->where(function($query)use($customer_id){
+                $query->whereJsonContains('customer_id', [(string) $customer_id])->orWhereJsonContains('customer_id', ['all']);
+            })
+            ->where('min_purchase','<=',$amount )
+            ->when(is_numeric($customer_id), function($q) use ($customer_id){
+                $q->where('same_user_limit', '>', function($query) use ($customer_id) {
+                    $query->select(DB::raw('COUNT(*)'))
+                            ->from('cash_back_histories')
+                            ->where('user_id', $customer_id)
+                            ->whereColumn('cash_back_id', 'cash_backs.id');
+                    });
+                })
+            ->orderBy('cashback_amount','desc')->first();
+
+            if($percent_bonus && ($amount >=$percent_bonus->min_purchase)){
+                $p_bonus = ($amount  * $percent_bonus->cashback_amount)/100;
+                $p_bonus = $p_bonus > $percent_bonus->max_discount ? $percent_bonus->max_discount : $p_bonus;
+                $p_bonus = round($p_bonus,config('round_up_to_digit'));
+            }else{
+                $p_bonus = 0;
+            }
+
+            if($amount_bonus && ($amount >=$amount_bonus->min_purchase)){
+                $a_bonus = $amount_bonus?$amount_bonus->cashback_amount: 0;
+                $a_bonus = round($a_bonus,config('round_up_to_digit'));
+            }else{
+                $a_bonus = 0;
+            }
+
+            $cashback_amount = max([$p_bonus,$a_bonus]);
+
+            if($p_bonus ==  $cashback_amount){
+                $data=[
+                    'calculated_amount'=> (float)$cashback_amount,
+                    'cashback_amount'=>$percent_bonus?->cashback_amount ?? 0,
+                    'cashback_type'=>$percent_bonus?->cashback_type ?? '',
+                    'min_purchase'=>$percent_bonus?->min_purchase ?? 0,
+                    'max_discount'=>$percent_bonus?->max_discount ?? 0,
+                    'id'=>$percent_bonus?->id,
+                ];
+
+            } elseif($a_bonus == $cashback_amount){
+                $data=[
+                    'calculated_amount'=> (float)$cashback_amount,
+                    'cashback_amount'=>$amount_bonus?->cashback_amount ?? 0,
+                    'cashback_type'=>$amount_bonus?->cashback_type ?? '',
+                    'min_purchase'=>$amount_bonus?->min_purchase ?? 0,
+                    'max_discount'=>$amount_bonus?->max_discount ?? 0,
+                    'id'=>$amount_bonus?->id,
+                ];
+            }
+
+            return $data ;
+        } catch (\Exception $exception) {
+            info([$exception->getFile(),$exception->getLine(),$exception->getMessage()]);
+            return $data ;
+        }
+
+    }
+
+      public static function currency_code()
+    {
+        if (!config('currency') ){
+            $currency = BusinessSetting::where(['key' => 'currency'])->first()?->value;
+            Config::set('currency', $currency );
+        }
+            else{
+                $currency = config('currency');
+            }
+
+        return $currency;
+    }
+
+    public static function currency_symbol()
+    {
+        if (!config('currency_symbol') ){
+            $currency_symbol = Currency::where(['currency_code' => Helpers::currency_code()])->first()?->currency_symbol;
+            Config::set('currency_symbol', $currency_symbol );
+        }
+        else{
+            $currency_symbol =config('currency_symbol');
+        }
+
+        return $currency_symbol ;
+    }
+
+     public static function visitor_log($model,$user_id,$visitor_log_id,$order_count=false){
+            if( $model == 'restaurant' ){
+                $visitor_log_type = 'App\Models\Restaurant';
+            }
+            else {
+                $visitor_log_type = 'App\Models\Category';
+            }
+        VisitorLog::updateOrInsert(
+            ['visitor_log_type' => $visitor_log_type,
+                'user_id' => $user_id,
+                'visitor_log_id' => $visitor_log_id,
+            ],
+            [
+                'visit_count' => $order_count == false ? DB::raw('visit_count + 1') : DB::raw('visit_count'),
+                'order_count' =>  $order_count == true ? DB::raw('order_count + 1') : DB::raw('order_count'),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+        return;
+    }
+
+      public static function getCusromerFirstOrderDiscount($order_count, $user_creation_date,$refby, $price = null){
+
+        $data=[
+            'is_valid' => false,
+            'discount_amount' => 0,
+            'discount_amount_type' => '',
+            'validity' => '',
+            'calculated_amount' => 0,
+        ];
+        if($order_count > 0 || !$refby){
+            return $data?? [];
+        }
+        $settings =  array_column(BusinessSetting::whereIn('key',['new_customer_discount_status','new_customer_discount_amount','new_customer_discount_amount_type','new_customer_discount_amount_validity','new_customer_discount_validity_type',])->get()->toArray(), 'value', 'key');
+
+        $validity_value = data_get($settings,'new_customer_discount_amount_validity');
+        $validity_unit = data_get($settings,'new_customer_discount_validity_type');
+
+        if($validity_unit == 'day'){
+            $validity_end_date = (new DateTime($user_creation_date))->modify("+$validity_value day");
+
+        } elseif($validity_unit == 'month'){
+            $validity_end_date = (new DateTime($user_creation_date))->modify("+$validity_value month");
+
+        } elseif($validity_unit == 'year'){
+            $validity_end_date = (new DateTime($user_creation_date))->modify("+$validity_value year");
+        }
+        else{
+            $validity_end_date = (new DateTime($user_creation_date))->modify("-1 day");
+        }
+
+        $is_valid=false;
+        $current_date = new DateTime();
+        if($validity_end_date >= $current_date){
+        $is_valid=true;
+        }
+
+
+
+    if($order_count == 0 && $is_valid && data_get($settings,'new_customer_discount_status' ) == 1 && data_get($settings,'new_customer_discount_amount' ) > 0 ){
+        $calculated_amount=0;
+        if(data_get($settings,'new_customer_discount_amount_type') == 'percentage' && isset($price)){
+            $calculated_amount= ($price / 100) * data_get($settings,'new_customer_discount_amount');
+        } else{
+            $calculated_amount=data_get($settings,'new_customer_discount_amount');
+        }
+
+        $data=[
+            'is_valid' => $is_valid,
+            'discount_amount' => data_get($settings,'new_customer_discount_amount'),
+            'discount_amount_type' => data_get($settings,'new_customer_discount_amount_type'),
+            'validity' => data_get($settings,'new_customer_discount_amount_validity') .' '. translate(Str::plural((data_get($settings,'new_customer_discount_validity_type') ?? 'day'),data_get($settings,'new_customer_discount_amount_validity'))),
+            'calculated_amount' => round($calculated_amount,config('round_up_to_digit')),
+        ];
+    }
+
+    return $data?? [];
+    }
+
+
+
+     public static function product_tax($price , $tax, $is_include=false){
+        $price_tax = ($price * $tax) / (100 + ($is_include?$tax:0)) ;
+        return $price_tax;
+    }
+
+    public static function increment_order_count($data){
+        $restaurant=$data;
+        $rest_sub=$restaurant->restaurant_sub;
+        if ( $restaurant->restaurant_model == 'subscription' && isset($rest_sub) && $rest_sub->max_order != "unlimited") {
+            $rest_sub->increment('max_order', 1);
+        }
+        return true;
+    }
+
+    public static function deliverymen_data_formatting($data)
+    {
+        $storage = [];
+        foreach ($data as $item) {
+            $item['avg_rating'] = (float)(count($item->rating) ? (float)$item->rating[0]->average : 0);
+            $item['rating_count'] = (int)(count($item->rating) ? $item->rating[0]->rating_count : 0);
+            $item['lat'] = $item->last_location ? $item->last_location->latitude : null;
+            $item['lng'] = $item->last_location ? $item->last_location->longitude : null;
+            $item['location'] = $item->last_location ? $item->last_location->location : null;
+
+            if ($item['rating']) {
+                unset($item['rating']);
+            }
+            if ($item['last_location']) {
+                unset($item['last_location']);
+            }
+            $storage[] = $item;
+        }
+        $data = $storage;
+
+        return $data;
+    }
+
+
+      public static function offline_payment_formater($user_data){
+        $userInputs = [];
+
+        $user_inputes=  json_decode($user_data->payment_info, true);
+        $method_name= $user_inputes['method_name'];
+        $method_id= $user_inputes['method_id'];
+
+        foreach ($user_inputes as $key => $value) {
+            if(!in_array($key,['method_name','method_id'])){
+                $userInput = [
+                'user_input' => $key,
+                'user_data' => $value,
+                ];
+                $userInputs[] = $userInput;
+            }
+        }
+
+        $data = [
+        'status' => $user_data->status,
+        'method_id' => $method_id,
+        'method_name' => $method_name,
+        'customer_note' => $user_data->customer_note,
+        'admin_note' => $user_data->note,
+        ];
+
+        $result = [
+        'input' => $userInputs,
+        'data' => $data,
+        'method_fields' =>json_decode($user_data->method_fields ,true),
+        ];
+
+        return $result;
     }
 }

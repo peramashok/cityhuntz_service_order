@@ -58,6 +58,7 @@
             "app/CentralLogics/restaurant.php",
             "app/CentralLogics/order.php",
             "app/CentralLogics/customer.php",
+            "app/CentralLogics/coupon.php",
             "app/helpers.php",
             "app/Library/Constants.php",
             "app/Library/Constant.php",
