@@ -105,7 +105,7 @@ class CartController extends Controller
         $cart->price = $request->price;
         $cart->quantity = $request->quantity;
         $cart->variations =$request->filled('variations') ? json_encode($request->variations) : [];
-        $cart->variation_options =$request->filled('variation_options') ? json_encode($request?->variation_options : [];
+        $cart->variation_options =$request->filled('variation_options') ? json_encode($request?->variation_options) : [];
         $cart->save();
 
         $item->carts()->save($cart);
