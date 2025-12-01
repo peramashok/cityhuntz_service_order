@@ -297,11 +297,15 @@ class OrdersController extends Controller
 
             return response()->json([
                 'status'=>'success',
-                "orders"=>$orderResult
+                "data"=>$orderResult
             ], 200);
 
         } catch(\Exception $e){
-            
+              return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getMessage()
+             ], 500);
         }
     }
 
@@ -877,45 +881,57 @@ class OrdersController extends Controller
      */
     public function track_order(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'order_id' => 'required',
-            'guest_id' => $request->user ? 'nullable' : 'required',
-            'contact_number' => $request->user ? 'nullable' : 'required',
-        ]);
+        try{ 
+            $validator = Validator::make($request->all(), [
+                'order_id' => 'required',
+                'guest_id' => $request->user ? 'nullable' : 'required',
+                'contact_number' => $request->user ? 'nullable' : 'required',
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => Helpers::error_processor($validator)], 403);
-        }
-        $user_id = $request->user ? $request->user->id : $request['guest_id'];
-
-        $order = Order::with(['restaurant','restaurant.restaurant_sub', 'refund', 'delivery_man', 'delivery_man.rating','subscription','payments'])->withCount('details')->where(['id' => $request['order_id'], 'user_id' => $user_id])
-        ->when(!$request->user, function ($query) use ($request) {
-            return $query->whereJsonContains('delivery_address->contact_person_number', $request['contact_number']);
-        })
-        ->Notpos()->first();
-
-        if($order){
-            $order['restaurant'] = $order['restaurant'] ? Helpers::restaurant_data_formatting($order['restaurant']): $order['restaurant'];
-            $order['delivery_address'] = $order['delivery_address']?json_decode($order['delivery_address'],true):$order['delivery_address'];
-            $order['delivery_man'] = $order['delivery_man']?Helpers::deliverymen_data_formatting([$order['delivery_man']]):$order['delivery_man'];
-            $order['offline_payment'] =  isset($order->offline_payments) ? Helpers::offline_payment_formater($order->offline_payments) : null;
-            $order['is_reviewed'] =   $order->details_count >  Review::whereOrderId($request->order_id)->count() ? False :True ;
-            $order['is_dm_reviewed'] =  $order?->delivery_man ? DMReview::whereOrderId($order->id)->exists()  : True ;
-
-            if($order->subscription){
-                $order->subscription['delivered_count']= (int) $order->subscription->logs()->whereOrderStatus('delivered')->count();
-                $order->subscription['canceled_count']= (int) $order->subscription->logs()->whereOrderStatus('canceled')->count();
+            if ($validator->fails()) {
+                return response()->json([ 'status' => 'failed','errors' => Helpers::error_processor($validator)], 403);
             }
+            $user_id = $request->user ? $request->user->id : $request['guest_id'];
 
-            unset($order['offline_payments']);
-            unset($order['details']);
-        } else{
+            $order = Order::with(['restaurant','restaurant.restaurant_sub', 'refund', 'delivery_man', 'delivery_man.rating','subscription','payments'])->withCount('details')->where(['id' => $request['order_id'], 'user_id' => $user_id])
+            ->when(!$request->user, function ($query) use ($request) {
+                return $query->whereJsonContains('delivery_address->contact_person_number', $request['contact_number']);
+            })
+            ->Notpos()->first();
+
+            if($order){
+                $order['restaurant'] = $order['restaurant'] ? Helpers::restaurant_data_formatting($order['restaurant']): $order['restaurant'];
+                $order['delivery_address'] = $order['delivery_address']?json_decode($order['delivery_address'],true):$order['delivery_address'];
+                $order['delivery_man'] = $order['delivery_man']?Helpers::deliverymen_data_formatting([$order['delivery_man']]):$order['delivery_man'];
+                $order['offline_payment'] =  isset($order->offline_payments) ? Helpers::offline_payment_formater($order->offline_payments) : null;
+                $order['is_reviewed'] =   $order->details_count >  Review::whereOrderId($request->order_id)->count() ? False :True ;
+                $order['is_dm_reviewed'] =  $order?->delivery_man ? DMReview::whereOrderId($order->id)->exists()  : True ;
+
+                if($order->subscription){
+                    $order->subscription['delivered_count']= (int) $order->subscription->logs()->whereOrderStatus('delivered')->count();
+                    $order->subscription['canceled_count']= (int) $order->subscription->logs()->whereOrderStatus('canceled')->count();
+                }
+
+                unset($order['offline_payments']);
+                unset($order['details']);
+            } else{
+                return response()->json([
+                   'status' => 'failed',
+                   'code' => 'order_not_found', 
+                   'message' => translate('messages.Order_not_found')
+                ], 404);
+            }
             return response()->json([
-                'errors' => [
-                    ['code' => 'order_not_found', 'message' => translate('messages.Order_not_found')]
-                ]
-            ], 404);
+               'status' => 'success',
+               'data' => $order
+            ], 200);
+
+        } catch(\Exception $e){
+              return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getMessage()
+             ], 500);
         }
-        return response()->json($order, 200);
     }
 }
