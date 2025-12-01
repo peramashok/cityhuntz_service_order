@@ -99,13 +99,13 @@ class CartController extends Controller
         $cart->item_id = $request->item_id;
         $cart->restaurant_id = $request->restaurant_id;
         $cart->is_guest = $is_guest;
-        $cart->add_on_ids = json_encode($request->add_on_ids);
-        $cart->add_on_qtys = json_encode($request->add_on_qtys);
+        $cart->add_on_ids = $request->filled('add_on_ids') ? json_encode($request->add_on_ids) : [];
+        $cart->add_on_qtys =$request->filled('add_on_qtys') ? json_encode($request->add_on_qtys) : [];
         $cart->item_type = $request->model;
         $cart->price = $request->price;
         $cart->quantity = $request->quantity;
-        $cart->variations =[];// json_encode($request->variations);
-        $cart->variation_options =[]; //json_encode($request?->variation_options ?? []);
+        $cart->variations =$request->filled('variations') ? json_encode($request->variations) : [];
+        $cart->variation_options =$request->filled('variation_options') ? json_encode($request?->variation_options : [];
         $cart->save();
 
         $item->carts()->save($cart);
