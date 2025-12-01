@@ -286,10 +286,10 @@ class OrdersController extends Controller
                 $result=$this->orderSingleRestaurant($request, $restaurantId, $dataArray);
 
                 if($result['status']=='failed' && count($orderResult)==0){
-                     return response()->json($result, 400);
+                     return response()->json(['status'=>'success',"data"=>$result], 400);
                 } if($result['status']=='failed' && count($orderResult)==1){
                      $result['order_result']=$orderResult[0];
-                     return response()->json($result, 400);
+                     return response()->json(['status'=>'success',"data"=>$result], 400);
                 } else {
                     $orderResult[]=$result;
                 }
