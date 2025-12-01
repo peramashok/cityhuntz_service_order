@@ -136,7 +136,7 @@ class OrdersController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => Helpers::error_processor($validator)], 403);
+            return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
         }
         $user_id = $request->user ? $request->user->id : $request['guest_id'];
         $order = Order::where(['user_id' => $user_id, 'id' => $request['order_id']])
@@ -180,7 +180,7 @@ class OrdersController extends Controller
                 }
             }
 
-            return response()->json(['status'=>'failed', 'message' => translate('messages.order_canceled_successfully')], 200);
+            return response()->json(['status'=>'success', 'message' => translate('messages.order_canceled_successfully')], 200);
         }
         return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.you_can_not_cancel_after_confirm')], 403);
     }
