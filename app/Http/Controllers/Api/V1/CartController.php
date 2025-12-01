@@ -18,15 +18,12 @@ class CartController extends Controller
 {
     public function get_carts(Request $request)
     {
-
-        dd($request->user);
-        
         $validator = Validator::make($request->all(), [
             'guest_id' => $request->user ? 'nullable' : 'required',
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => Helpers::error_processor($validator)], 403);
+            return response()->json(['status'=>'failed','errors' => Helpers::error_processor($validator)], 403);
         }
         $user_id = $request->user ? $request->user->id : $request['guest_id'];
         $is_guest = $request->user ? 0 : 1;
@@ -41,7 +38,7 @@ class CartController extends Controller
             unset($data->restaurant);
             return $data;
         });
-        return response()->json($carts, 200);
+        return response()->json(['status'=>'success','data'=>$carts], 200);
     }
 
 
@@ -61,7 +58,7 @@ class CartController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => Helpers::error_processor($validator)], 403);
+            return response()->json(['status'=>'failed','errors' => Helpers::error_processor($validator)], 403);
         }
 
         $user_id = $request->user ? $request->user->id : $request['guest_id'];
@@ -72,29 +69,17 @@ class CartController extends Controller
         $cart = Cart::where('item_id',$request->item_id)->where('item_type',$model)->where('variations',json_encode($request->variations))->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
 
         if($cart){
-            return response()->json([
-                'errors' => [
-                    ['code' => 'cart_item', 'message' => translate('messages.Item_already_exists')]
-                ]
-            ], 403);
+            return response()->json(['status'=>'failed','code' => 'cart_item', 'message' => translate('messages.Item_already_exists')], 403);
         }
 
         if($item?->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
-            return response()->json([
-                'errors' => [
-                    ['code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')]
-                ]
-            ], 403);
+            return response()->json(['status'=>'failed','code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
         }
         if($request->model === 'Food'){
             $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$item,quantity: $request->quantity,add_on_qtys:$request->add_on_qtys, variation_options: $request?->variation_options,add_on_ids:$request->add_on_ids );
 
             if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
-                return response()->json([
-                    'errors' => [
-                        ['code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ],
-                    ]
-                ], 403);
+                return response()->json(['status'=>'failed','code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ], 403);
             }
         }
 
@@ -126,7 +111,7 @@ class CartController extends Controller
             unset($data->restaurant);
             return $data;
         });
-        return response()->json($carts, 200);
+       return response()->json(['status'=>'success','data'=>$carts], 200);
     }
 
     public function update_cart(Request $request)
@@ -147,22 +132,14 @@ class CartController extends Controller
         $cart = Cart::find($request->cart_id);
         $item = $cart->item_type === 'App\Models\Food' ? Food::find($cart->item_id) : ItemCampaign::find($cart->item_id);
         if($item->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
-            return response()->json([
-                'errors' => [
-                    ['code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')]
-                ]
-            ], 403);
+            return response()->json(['status'=>'failed', 'code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
         }
 
         if( $cart->item_type === 'App\Models\Food'){
             $addonAndVariationStock= Helpers::addonAndVariationStockCheck( product:$item, quantity: $request->quantity,add_on_qtys:$request->add_on_qtys, variation_options: $request?->variation_options,add_on_ids:$request->add_on_ids );
 
             if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
-                return response()->json([
-                    'errors' => [
-                        ['code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ],
-                    ]
-                ], 403);
+                return response()->json(['status'=>'failed','code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ], 403);
             }
         }
 
@@ -188,7 +165,7 @@ class CartController extends Controller
             unset($data->restaurant);
             return $data;
         });
-        return response()->json($carts, 200);
+        return response()->json(['status'=>'success','data'=>$carts], 200);
     }
 
     public function remove_cart_item(Request $request)
@@ -199,7 +176,7 @@ class CartController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => Helpers::error_processor($validator)], 403);
+            return response()->json(['status'=>'failed','errors' => Helpers::error_processor($validator)], 403);
         }
 
         $user_id = $request->user ? $request->user->id : $request['guest_id'];
@@ -219,7 +196,7 @@ class CartController extends Controller
             unset($data->restaurant);
             return $data;
         });
-        return response()->json($carts, 200);
+        return response()->json(['status'=>'success','data'=>$carts], 200);
     }
 
     public function remove_cart(Request $request)
@@ -252,7 +229,7 @@ class CartController extends Controller
             unset($data->restaurant);
             return $data;
         });
-        return response()->json($carts, 200);
+       return response()->json(['status'=>'success','data'=>$carts], 200);
     }
 
     public function add_to_cart_multiple(Request $request)
