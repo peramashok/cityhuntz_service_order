@@ -54,7 +54,7 @@ class CartController extends Controller
             'model' => 'required|string|in:Food,ItemCampaign',
             'price' => 'required|numeric',
             'variation_options' => 'nullable|array',
-            'quantity' => 'required|integer|min:1',
+            'quantity' => 'required|integer|min:0',
             'restaurant_id' => [
                   'required',
                    Rule::exists('restaurants', 'id')->whereNull('deleted_at'),
@@ -71,6 +71,8 @@ class CartController extends Controller
             return response()->json(['status'=>'failed','message'=>"Food details not found for selected restaurant"], 400);  
         }
 
+
+
         $user_id = $request->user ? $request->user->id : $request['guest_id'];
         $is_guest = $request->user ? 0 : 1;
         $model = $request->model === 'Food' ? 'App\Models\Food' : 'App\Models\ItemCampaign';
@@ -78,8 +80,15 @@ class CartController extends Controller
 
         $cart = Cart::where('item_id',$request->item_id)->where('item_type',$model)->where('variations',json_encode($request->variations))->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
 
+
         if($cart){
-            return response()->json(['status'=>'failed','code' => 'cart_item', 'message' => translate('messages.Item_already_exists')], 403);
+            // return response()->json(['status'=>'failed','code' => 'cart_item', 'message' => translate('messages.Item_already_exists')], 403);
+            if($request->quantity>0){
+                $cart->quantity = $request->quantity;
+                $cart->save();
+            } else if($request->quantity==0){
+                $cart->delete();
+            }
         }
 
         if($item?->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
@@ -172,7 +181,7 @@ class CartController extends Controller
 
         $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
         ->map(function ($data) {
-             $data->restaurant_name =$data->restaurant?->name;
+            $data->restaurant_name =$data->restaurant?->name;
             $data->add_on_ids = json_decode($data->add_on_ids,true);
             $data->add_on_qtys = json_decode($data->add_on_qtys,true);
             $data->variations = json_decode($data->variations,true);
