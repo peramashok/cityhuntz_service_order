@@ -29,12 +29,13 @@ class CartController extends Controller
         $is_guest = $request->user ? 0 : 1;
         $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
         ->map(function ($data) {
-             $data->restaurant_name =$data->restaurant?->name;
+            $data->restaurant_name =$data->restaurant?->name;
             $data->add_on_ids = json_decode($data->add_on_ids,true);
             $data->add_on_qtys = json_decode($data->add_on_qtys,true);
             $data->variations = json_decode($data->variations,true);
             $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
             $data->add_on_qtys, false, app()->getLocale());
+
             unset($data->restaurant);
             return $data;
         });
@@ -44,6 +45,7 @@ class CartController extends Controller
 
    public function add_to_cart(Request $request)
     {
+
         $validator = Validator::make($request->all(), [
             'guest_id' => $request->user ? 'nullable' : 'required',
             'item_id' => [
@@ -54,6 +56,9 @@ class CartController extends Controller
             'model' => 'required|string|in:Food,ItemCampaign',
             'price' => 'required|numeric',
             'variation_options' => 'nullable|array',
+            'add_on_ids' => 'nullable|array',
+            'add_on_qtys' => 'nullable|array',
+            'variations' => 'nullable|array',
             'quantity' => 'required|integer|min:0',
             'restaurant_id' => [
                   'required',
@@ -78,46 +83,53 @@ class CartController extends Controller
         $model = $request->model === 'Food' ? 'App\Models\Food' : 'App\Models\ItemCampaign';
         $item = $request->model === 'Food' ? Food::find($request->item_id) : ItemCampaign::find($request->item_id);
 
-        $cart = Cart::where('item_id',$request->item_id)->where('item_type',$model)->where('variations',json_encode($request->variations))->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
+        $cart = Cart::where('item_id',$request->item_id)->where('item_type',$model)->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
 
 
         if($cart){
             // return response()->json(['status'=>'failed','code' => 'cart_item', 'message' => translate('messages.Item_already_exists')], 403);
             if($request->quantity>0){
+                $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
+                $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
+                $cart->item_type = $request->model;
+                $cart->price = $request->price;
                 $cart->quantity = $request->quantity;
+                $cart->variations =json_encode($request->variations ?? []);
+                $cart->variation_options =json_encode($request->variation_options ?? []);
                 $cart->save();
             } else if($request->quantity==0){
                 $cart->delete();
             }
-        }
+        } else{
 
-        if($item?->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
-            return response()->json(['status'=>'failed','code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
-        }
-        if($request->model === 'Food'){
-            $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$item,quantity: $request->quantity,add_on_qtys:$request->add_on_qtys, variation_options: $request?->variation_options,add_on_ids:$request->add_on_ids );
-
-            if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
-                return response()->json(['status'=>'failed','code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ], 403);
+            if($item?->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
+                return response()->json(['status'=>'failed','code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
             }
+            if($request->model === 'Food'){
+                $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$item,quantity: $request->quantity,add_on_qtys:$request->add_on_qtys, variation_options: $request?->variation_options,add_on_ids:$request->add_on_ids );
+
+                if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
+                    return response()->json(['status'=>'failed','code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ], 403);
+                }
+            }
+
+            $cart = new Cart();
+            $cart->user_id = $user_id;
+            $cart->item_id = $request->item_id;
+            $cart->restaurant_id = $request->restaurant_id;
+            $cart->is_guest = $is_guest;
+            $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
+            $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
+            $cart->item_type = $request->model;
+            $cart->price = $request->price;
+            $cart->quantity = $request->quantity;
+            $cart->variations =json_encode($request->variations ?? []);
+            $cart->variation_options =json_encode($request->variation_options ?? []);
+            $cart->save();
+
+            $item->carts()->save($cart);
+
         }
-
-
-        $cart = new Cart();
-        $cart->user_id = $user_id;
-        $cart->item_id = $request->item_id;
-        $cart->restaurant_id = $request->restaurant_id;
-        $cart->is_guest = $is_guest;
-        $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
-        $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
-        $cart->item_type = $request->model;
-        $cart->price = $request->price;
-        $cart->quantity = $request->quantity;
-        $cart->variations =json_encode($request->variations ?? []);
-        $cart->variation_options =json_encode($request->variation_options ?? []);
-        $cart->save();
-
-        $item->carts()->save($cart);
 
         $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
         ->map(function ($data) {
