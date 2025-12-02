@@ -756,9 +756,10 @@ class Helpers
         $add_ons = gettype($data['add_ons']) == 'array' ? $data['add_ons'] : json_decode($data['add_ons'],true);
         $data_addons = self::addon_data_formatting(AddOn::whereIn('id', $add_ons)->active()->get(), true, $trans, $local);
 
-
          // FIX: ensure both variables are arrays
         $selected_addons = is_array($selected_addons) ? $selected_addons : [];
+
+
         $selected_addon_quantity = is_array($selected_addon_quantity) ? $selected_addon_quantity : [];
         $selected_variation = is_array($selected_variation) ? $selected_variation : [];
 
