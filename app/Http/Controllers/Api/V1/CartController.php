@@ -91,7 +91,7 @@ class CartController extends Controller
         $model = $request->model === 'Food' ? 'App\Models\Food' : 'App\Models\ItemCampaign';
         $item = $request->model === 'Food' ? Food::find($request->item_id) : ItemCampaign::find($request->item_id);
 
-        $cart = Cart::where('item_id',$request->item_id)->where('item_type',$model)->where('variations',json_encode($request->variations))->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
+        $cart = Cart::where('item_id',$request->item_id)->where('item_type',$model)->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
 
 
         if($cart){
@@ -102,35 +102,37 @@ class CartController extends Controller
             } else if($request->quantity==0){
                 $cart->delete();
             }
-        }
+        } else{
 
-        if($item?->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
-            return response()->json(['status'=>'failed','code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
-        }
-        if($request->model === 'Food'){
-            $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$item,quantity: $request->quantity,add_on_qtys:$request->add_on_qtys, variation_options: $request?->variation_options,add_on_ids:$request->add_on_ids );
-
-            if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
-                return response()->json(['status'=>'failed','code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ], 403);
+            if($item?->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
+                return response()->json(['status'=>'failed','code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
             }
+            if($request->model === 'Food'){
+                $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$item,quantity: $request->quantity,add_on_qtys:$request->add_on_qtys, variation_options: $request?->variation_options,add_on_ids:$request->add_on_ids );
+
+                if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
+                    return response()->json(['status'=>'failed','code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ], 403);
+                }
+            }
+
+     
+            $cart = new Cart();
+            $cart->user_id = $user_id;
+            $cart->item_id = $request->item_id;
+            $cart->restaurant_id = $request->restaurant_id;
+            $cart->is_guest = $is_guest;
+            $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
+            $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
+            $cart->item_type = $request->model;
+            $cart->price = $request->price;
+            $cart->quantity = $request->quantity;
+            $cart->variations =json_encode($request->variations ?? []);
+            $cart->variation_options =json_encode($request->variation_options ?? []);
+            $cart->save();
+
+            $item->carts()->save($cart);
+
         }
-
-
-        $cart = new Cart();
-        $cart->user_id = $user_id;
-        $cart->item_id = $request->item_id;
-        $cart->restaurant_id = $request->restaurant_id;
-        $cart->is_guest = $is_guest;
-        $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
-        $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
-        $cart->item_type = $request->model;
-        $cart->price = $request->price;
-        $cart->quantity = $request->quantity;
-        $cart->variations =json_encode($request->variations ?? []);
-        $cart->variation_options =json_encode($request->variation_options ?? []);
-        $cart->save();
-
-        $item->carts()->save($cart);
 
         $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
         ->map(function ($data) {
@@ -268,7 +270,7 @@ class CartController extends Controller
             unset($data->item);
             $data->item=$arr;
 
-            
+
             unset($data->restaurant);
             return $data;
         });
