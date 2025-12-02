@@ -46,20 +46,32 @@ class CartController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'guest_id' => $request->user ? 'nullable' : 'required',
-            'item_id' => 'required|integer',
+            'item_id' => [
+              'required',
+               Rule::exists('food', 'id')->whereNull('deleted_at'),
+             ],
+
             'model' => 'required|string|in:Food,ItemCampaign',
             'price' => 'required|numeric',
             'variation_options' => 'nullable|array',
-            'quantity' => 'required|integer|min:1',
+            'quantity' => 'required|integer|min:0',
             'restaurant_id' => [
                   'required',
                    Rule::exists('restaurants', 'id')->whereNull('deleted_at'),
-                ]
+            ]
         ]);
 
         if ($validator->fails()) {
             return response()->json(['status'=>'failed','errors' => Helpers::error_processor($validator)], 403);
         }
+
+        $foodData=Food::where('id', $request->item_id)->where('restaurant_id', $request->restaurant_id)->first();
+
+        if(is_null($foodData)){
+            return response()->json(['status'=>'failed','message'=>"Food details not found for selected restaurant"], 400);  
+        }
+
+
 
         $user_id = $request->user ? $request->user->id : $request['guest_id'];
         $is_guest = $request->user ? 0 : 1;
@@ -68,8 +80,15 @@ class CartController extends Controller
 
         $cart = Cart::where('item_id',$request->item_id)->where('item_type',$model)->where('variations',json_encode($request->variations))->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
 
+
         if($cart){
-            return response()->json(['status'=>'failed','code' => 'cart_item', 'message' => translate('messages.Item_already_exists')], 403);
+            // return response()->json(['status'=>'failed','code' => 'cart_item', 'message' => translate('messages.Item_already_exists')], 403);
+            if($request->quantity>0){
+                $cart->quantity = $request->quantity;
+                $cart->save();
+            } else if($request->quantity==0){
+                $cart->delete();
+            }
         }
 
         if($item?->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
@@ -89,13 +108,13 @@ class CartController extends Controller
         $cart->item_id = $request->item_id;
         $cart->restaurant_id = $request->restaurant_id;
         $cart->is_guest = $is_guest;
-        $cart->add_on_ids = json_encode($request->add_on_ids);
-        $cart->add_on_qtys = json_encode($request->add_on_qtys);
+        $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
+        $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
         $cart->item_type = $request->model;
         $cart->price = $request->price;
         $cart->quantity = $request->quantity;
-        $cart->variations =[];// json_encode($request->variations);
-        $cart->variation_options =[]; //json_encode($request?->variation_options ?? []);
+        $cart->variations =json_encode($request->variations ?? []);
+        $cart->variation_options =json_encode($request->variation_options ?? []);
         $cart->save();
 
         $item->carts()->save($cart);
@@ -127,9 +146,15 @@ class CartController extends Controller
             return response()->json(['errors' => Helpers::error_processor($validator)], 403);
         }
 
+
         $user_id = $request->user ? $request->user->id : $request['guest_id'];
         $is_guest = $request->user ? 0 : 1;
-        $cart = Cart::find($request->cart_id);
+        $cart = Cart::where('id', $request->cart_id)->first();
+  
+        if(is_null($cart)){
+            return response()->json(['status'=>'failed','message'=>"Cart details not found"], 400);  
+        }
+
         $item = $cart->item_type === 'App\Models\Food' ? Food::find($cart->item_id) : ItemCampaign::find($cart->item_id);
         if($item->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
             return response()->json(['status'=>'failed', 'code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
@@ -156,7 +181,7 @@ class CartController extends Controller
 
         $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
         ->map(function ($data) {
-             $data->restaurant_name =$data->restaurant?->name;
+            $data->restaurant_name =$data->restaurant?->name;
             $data->add_on_ids = json_decode($data->add_on_ids,true);
             $data->add_on_qtys = json_decode($data->add_on_qtys,true);
             $data->variations = json_decode($data->variations,true);
@@ -182,7 +207,11 @@ class CartController extends Controller
         $user_id = $request->user ? $request->user->id : $request['guest_id'];
         $is_guest = $request->user ? 0 : 1;
 
-        $cart = Cart::find($request->cart_id);
+        $cart = Cart::where('id', $request->cart_id)->first();
+        if(is_null($cart)){
+            return response()->json(['status'=>'failed','message'=>"Cart details not found"], 400);  
+        }
+
         $cart->delete();
 
         $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
