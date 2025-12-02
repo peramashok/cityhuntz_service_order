@@ -35,7 +35,6 @@ class CartController extends Controller
             $data->variations = json_decode($data->variations,true);
             $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
             $data->add_on_qtys, false, app()->getLocale());
-
             unset($data->restaurant);
             return $data;
         });
@@ -45,7 +44,6 @@ class CartController extends Controller
 
    public function add_to_cart(Request $request)
     {
-
         $validator = Validator::make($request->all(), [
             'guest_id' => $request->user ? 'nullable' : 'required',
             'item_id' => [
@@ -57,8 +55,8 @@ class CartController extends Controller
             'price' => 'required|numeric',
             'variation_options' => 'nullable|array',
             'add_on_ids' => 'nullable|array',
-            'add_on_qtys' => 'nullable|array',
-            'variations' => 'nullable|array',
+            'add_on_qtys'=>'nullable|array',
+            'variations'=>'nullable|array',
             'quantity' => 'required|integer|min:0',
             'restaurant_id' => [
                   'required',
@@ -80,7 +78,17 @@ class CartController extends Controller
 
         $user_id = $request->user ? $request->user->id : $request['guest_id'];
         $is_guest = $request->user ? 0 : 1;
-        $model = $request->model === 'Food' ? 'App\Models\Food' : 'App\Models\ItemCampaign';
+        $model = $request->model;
+
+
+        if ($model == 'Food') {
+            $model = \App\Models\Food::class;
+        } elseif ($model == 'ItemCampaign') {
+            $model = \App\Models\ItemCampaign::class;
+        }
+
+
+
         $item = $request->model === 'Food' ? Food::find($request->item_id) : ItemCampaign::find($request->item_id);
 
         $cart = Cart::where('item_id',$request->item_id)->where('item_type',$model)->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
@@ -91,7 +99,7 @@ class CartController extends Controller
             if($request->quantity>0){
                 $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
                 $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
-                $cart->item_type = $request->model;
+                $cart->item_type = $model;
                 $cart->price = $request->price;
                 $cart->quantity = $request->quantity;
                 $cart->variations =json_encode($request->variations ?? []);
@@ -100,19 +108,20 @@ class CartController extends Controller
             } else if($request->quantity==0){
                 $cart->delete();
             }
-        } else{
+        }
 
-            if($item?->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
-                return response()->json(['status'=>'failed','code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
+        if($item?->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
+            return response()->json(['status'=>'failed','code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
+        }
+        if($request->model === 'Food'){
+            $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$item,quantity: $request->quantity,add_on_qtys:$request->add_on_qtys, variation_options: $request?->variation_options,add_on_ids:$request->add_on_ids );
+
+            if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
+                return response()->json(['status'=>'failed','code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ], 403);
             }
-            if($request->model === 'Food'){
-                $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$item,quantity: $request->quantity,add_on_qtys:$request->add_on_qtys, variation_options: $request?->variation_options,add_on_ids:$request->add_on_ids );
+        }
 
-                if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
-                    return response()->json(['status'=>'failed','code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ], 403);
-                }
-            }
-
+        if(is_null($cart)){
             $cart = new Cart();
             $cart->user_id = $user_id;
             $cart->item_id = $request->item_id;
@@ -120,7 +129,7 @@ class CartController extends Controller
             $cart->is_guest = $is_guest;
             $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
             $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
-            $cart->item_type = $request->model;
+            $cart->item_type = $model;
             $cart->price = $request->price;
             $cart->quantity = $request->quantity;
             $cart->variations =json_encode($request->variations ?? []);
@@ -128,9 +137,7 @@ class CartController extends Controller
             $cart->save();
 
             $item->carts()->save($cart);
-
         }
-
         $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
         ->map(function ($data) {
             $data->restaurant_name =$data->restaurant?->name;
