@@ -830,13 +830,13 @@ class Helpers
         $data['max_delivery_time'] =  (int) explode('-',$data->restaurant->delivery_time)[1] ?? 0;
         $cuisine =[];
         $cui =$data->restaurant->load('cuisine');
-        if(isset($cui->cuisine)){
-            foreach($cui->cuisine as $cu){
-                $cuisine[]= ['id' => (int) $cu->id, 'name' => $cu->name , 'image' => $cu->image];
-            }
-        }
+        // if(isset($cui->cuisine)){
+        //     foreach($cui->cuisine as $cu){
+        //         $cuisine[]= ['id' => (int) $cu->id, 'name' => $cu->name , 'image' => $cu->image];
+        //     }
+        // }
 
-        $data['cuisines'] =   $cuisine;
+        // $data['cuisines'] =   $cuisine;
 
         unset($data['restaurant']);
         unset($data['rating']);
