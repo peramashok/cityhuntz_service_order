@@ -29,12 +29,24 @@ class CartController extends Controller
         $is_guest = $request->user ? 0 : 1;
         $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
         ->map(function ($data) {
-             $data->restaurant_name =$data->restaurant?->name;
+            $data->restaurant_name =$data->restaurant?->name;
             $data->add_on_ids = json_decode($data->add_on_ids,true);
             $data->add_on_qtys = json_decode($data->add_on_qtys,true);
             $data->variations = json_decode($data->variations,true);
-            $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
-            $data->add_on_qtys, false, app()->getLocale());
+            // $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
+            // $data->add_on_qtys, false, app()->getLocale());
+
+
+            $arr=array(
+                'id'=>$data->item->id, 
+                'name'=>$data->item->name,
+                'image'=>$data->item->image, 
+                'price'=>$data->item->price, 
+                'description'=>$data->item->description
+            );
+            unset($data->item);
+            $data->item=$arr;
+
             unset($data->restaurant);
             return $data;
         });
@@ -44,6 +56,7 @@ class CartController extends Controller
 
    public function add_to_cart(Request $request)
     {
+
         $validator = Validator::make($request->all(), [
             'guest_id' => $request->user ? 'nullable' : 'required',
             'item_id' => [
@@ -125,8 +138,19 @@ class CartController extends Controller
             $data->add_on_ids = json_decode($data->add_on_ids,true);
             $data->add_on_qtys = json_decode($data->add_on_qtys,true);
             $data->variations = json_decode($data->variations,true);
-            $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
-            $data->add_on_qtys, false, app()->getLocale());
+            // $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
+            // $data->add_on_qtys, false, app()->getLocale());
+
+            $arr=array(
+                'id'=>$data->item->id, 
+                'name'=>$data->item->name,
+                'image'=>$data->item->image, 
+                'price'=>$data->item->price, 
+                'description'=>$data->item->description
+            );
+            unset($data->item);
+            $data->item=$arr;
+
             unset($data->restaurant);
             return $data;
         });
@@ -185,8 +209,19 @@ class CartController extends Controller
             $data->add_on_ids = json_decode($data->add_on_ids,true);
             $data->add_on_qtys = json_decode($data->add_on_qtys,true);
             $data->variations = json_decode($data->variations,true);
-            $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
-            $data->add_on_qtys, false, app()->getLocale());
+            // $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
+            // $data->add_on_qtys, false, app()->getLocale());
+
+              $arr=array(
+                'id'=>$data->item->id, 
+                'name'=>$data->item->name,
+                'image'=>$data->item->image, 
+                'price'=>$data->item->price, 
+                'description'=>$data->item->description
+            );
+            unset($data->item);
+            $data->item=$arr;
+
             unset($data->restaurant);
             return $data;
         });
@@ -220,8 +255,20 @@ class CartController extends Controller
             $data->add_on_ids = json_decode($data->add_on_ids,true);
             $data->add_on_qtys = json_decode($data->add_on_qtys,true);
             $data->variations = json_decode($data->variations,true);
-            $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
-            $data->add_on_qtys, false, app()->getLocale());
+            // $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
+            // $data->add_on_qtys, false, app()->getLocale());
+
+              $arr=array(
+                'id'=>$data->item->id, 
+                'name'=>$data->item->name,
+                'image'=>$data->item->image, 
+                'price'=>$data->item->price, 
+                'description'=>$data->item->description
+            );
+            unset($data->item);
+            $data->item=$arr;
+
+            
             unset($data->restaurant);
             return $data;
         });
