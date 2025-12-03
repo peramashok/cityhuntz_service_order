@@ -309,11 +309,8 @@ class OrdersController extends Controller
         }
     }
 
-
     public function orderSingleRestaurant($request, $restaurantId, $dataArray)
     {
-
-
         $coupon=$dataArray['coupon'];
         $delivery_charge=$dataArray['delivery_charge'];
         $free_delivery_by=$dataArray['free_delivery_by'];
@@ -350,18 +347,18 @@ class OrdersController extends Controller
         }
 
 
-        // if($request->schedule_at && !$restaurant->schedule_order){
-        //     return  ['status'=>'failed', 'code' => 'schedule_at', 'message' => translate('messages.schedule_order_not_available')];
-        // }
+        if($request->schedule_at && !$restaurant->schedule_order){
+            return  ['status'=>'failed', 'code' => 'schedule_at', 'message' => translate('messages.schedule_order_not_available')];
+        }
 
-        // if($restaurant->open == false && !$request->subscription_order){
-        //   return  ['status'=>'failed', 'code' => 'order_time', 'message' => translate('messages.restaurant_is_closed_at_order_time')];
-        // }
+        if($restaurant->open == false && !$request->subscription_order){
+          return  ['status'=>'failed', 'code' => 'order_time', 'message' => translate('messages.restaurant_is_closed_at_order_time')];
+        }
 
-        // $instant_order = BusinessSetting::where('key', 'instant_order')->first()?->value;
-        // if(($instant_order != 1 || $restaurant->restaurant_config?->instant_order != 1) && !$request->schedule_at && !$request->subscription_order){
-        //    return  ['status'=>'failed', 'code' => 'instant_order', 'message' => translate('messages.instant_order_is_not_available_for_now!')];
-        // }
+        $instant_order = BusinessSetting::where('key', 'instant_order')->first()?->value;
+        if(($instant_order != 1 || $restaurant->restaurant_config?->instant_order != 1) && !$request->schedule_at && !$request->subscription_order){
+           return  ['status'=>'failed', 'code' => 'instant_order', 'message' => translate('messages.instant_order_is_not_available_for_now!')];
+        }
 
 
         DB::beginTransaction();
@@ -592,15 +589,15 @@ class OrdersController extends Controller
                      return  ['status'=>'failed', 'code' => 'quantity', 'message' =>$product?->name ?? $product?->title ?? $code.' '.translate('messages.has_reached_the_maximum_cart_quantity_limit')];
                 }
 
-                // $addon_data = Helpers::calculate_addon_price(addons: \App\Models\AddOn::whereIn('id',$c['add_on_ids'])->get(), add_on_qtys: $c['add_on_qtys']);
+                $addon_data = Helpers::calculate_addon_price(addons: \App\Models\AddOn::whereIn('id',$c['add_on_ids'])->get(), add_on_qtys: $c['add_on_qtys']);
 
-                //     if($code == 'food'){
-                //         $variation_options =  is_string(data_get($c,'variation_options')) ? json_decode(data_get($c,'variation_options') ,true) : [];
-                //         $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$product,quantity: $c['quantity'],add_on_qtys:$c['add_on_qtys'], variation_options:$variation_options,add_on_ids:$c['add_on_ids'],incrementCount: true );
-                //             if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
-                //                 return  ['status'=>'failed', 'code' => data_get($addonAndVariationStock, 'type') ?? 'food', 'message' =>data_get($addonAndVariationStock, 'out_of_stock') ];
-                //             }
-                //         }
+                if($code == 'food'){
+                    $variation_options =  is_string(data_get($c,'variation_options')) ? json_decode(data_get($c,'variation_options') ,true) : [];
+                    $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$product,quantity: $c['quantity'],add_on_qtys:$c['add_on_qtys'], variation_options:$variation_options,add_on_ids:$c['add_on_ids'],incrementCount: true );
+                    if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
+                        return  ['status'=>'failed', 'code' => data_get($addonAndVariationStock, 'type') ?? 'food', 'message' =>data_get($addonAndVariationStock, 'out_of_stock') ];
+                    }
+                }
 
                 $product_variations = json_decode($product->variations, true);
                 $variations=[];
@@ -793,11 +790,14 @@ class OrdersController extends Controller
                     $order_details[$key]['discount_on_food'] = 0;
                 }
             }
-            OrderDetail::insert($order_details);
 
+
+            $res=OrderDetail::insert($order_details);
+
+           
             if(!isset($request->is_buy_now) || (isset($request->is_buy_now) && $request->is_buy_now == 0 )){
                 foreach ($carts as $cart) {
-                    // $cart->delete();
+                    $cart->delete();
                 }
             }
 
@@ -893,14 +893,27 @@ class OrdersController extends Controller
             }
             $user_id = $request->user ? $request->user->id : $request['guest_id'];
 
-            $order = Order::with(['restaurant','restaurant.restaurant_sub', 'refund', 'delivery_man', 'delivery_man.rating','subscription','payments'])->withCount('details')->where(['id' => $request['order_id'], 'user_id' => $user_id])
+            $order = Order::with(['restaurant','restaurant.restaurant_sub', 'refund', 'delivery_man', 'delivery_man.rating','subscription','payments', 'details'])->withCount('details')->where(['id' => $request['order_id'], 'user_id' => $user_id])
             ->when(!$request->user, function ($query) use ($request) {
                 return $query->whereJsonContains('delivery_address->contact_person_number', $request['contact_number']);
             })
             ->Notpos()->first();
 
             if($order){
-                $order['restaurant'] = $order['restaurant'] ? Helpers::restaurant_data_formatting($order['restaurant']): $order['restaurant'];
+
+                $restaurantArray=array(
+                    "id"=>$order['restaurant']->id,
+                    "name"=>$order['restaurant']->name,
+                    "longitude"=>$order['restaurant']->longitude,
+                    "latitude"=>$order['restaurant']->latitude,
+                    "address"=>$order['restaurant']->address,
+                    "city"=>$order['restaurant']->city,
+                    "state"=>$order['restaurant']->stateInfo?->name,
+                    "zipcode"=>$order['restaurant']->zipcode,
+                    "logo"=>$order['restaurant']->logo,
+                );
+                unset($order['restaurant']);
+                $order['restaurant'] = $restaurantArray;
                 $order['delivery_address'] = $order['delivery_address']?json_decode($order['delivery_address'],true):$order['delivery_address'];
                 $order['delivery_man'] = $order['delivery_man']?Helpers::deliverymen_data_formatting([$order['delivery_man']]):$order['delivery_man'];
                 $order['offline_payment'] =  isset($order->offline_payments) ? Helpers::offline_payment_formater($order->offline_payments) : null;
@@ -913,7 +926,7 @@ class OrdersController extends Controller
                 }
 
                 unset($order['offline_payments']);
-                unset($order['details']);
+               // unset($order['details']);
             } else{
                 return response()->json([
                    'status' => 'failed',
@@ -930,7 +943,7 @@ class OrdersController extends Controller
               return response()->json([
                'status' => 'failed',
                'message' => "Something went wrong. ",
-               'error'=>$e->getMessage()
+               'error'=>$e->getLine()."-".$e->getMessage()
              ], 500);
         }
     }

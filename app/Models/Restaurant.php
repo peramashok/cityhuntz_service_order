@@ -217,6 +217,11 @@ class Restaurant extends Model
         return [$rating5, $rating4, $rating3, $rating2, $rating1];
     }
 
+    public function stateInfo()
+    {
+        return $this->belongsTo(State::class);
+    }
+
     public function getGstStatusAttribute()
     {
         return (boolean)($this->gst?json_decode($this->gst, true)['status']:0);
