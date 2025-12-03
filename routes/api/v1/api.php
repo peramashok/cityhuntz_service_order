@@ -51,7 +51,7 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
      Route::group(['prefix' => 'customer', 'middleware' => 'apiGuestCheck'], function () {
 
         Route::prefix('order')->controller(OrdersController::class)->group(function () {
-            // Route::get('list', 'OrderController@get_order_list');
+             Route::get('list', 'get_customer_order_list');
             // Route::get('order-subscription-list', 'OrderController@get_order_subscription_list');
             // Route::get('running-orders', 'OrderController@get_running_orders');
             // Route::get('details', 'OrderController@get_order_details');

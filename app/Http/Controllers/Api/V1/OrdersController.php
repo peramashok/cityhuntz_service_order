@@ -947,4 +947,66 @@ class OrdersController extends Controller
              ], 500);
         }
     }
+
+    /**
+     * customer or guest user orders list
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Resp
+     */
+     public function get_customer_order_list(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'limit' => 'required',
+            'offset' => 'required',
+            'guest_id' => $request->user ? 'nullable' : 'required',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => Helpers::error_processor($validator)], 403);
+        }
+        $user_id = $request->user ? $request->user->id : $request['guest_id'];
+ 
+        $paginator = Order::with(['restaurant', 'delivery_man.rating'])->withCount('details')->where(['user_id' => $user_id])->
+        whereIn('order_status', ['delivered','canceled','refund_requested','refund_request_canceled','refunded','failed', 'pending'])->Notpos()
+        ->whereNull('subscription_id')
+        ->when(!isset($request->user) , function($query){
+            $query->where('is_guest' , 1);
+        })
+
+        ->when(isset($request->user)  , function($query){
+            $query->where('is_guest' , 0);
+        })
+
+        ->latest()->paginate($request['limit'], ['*'], 'page', $request['offset']);
+        $orders = array_map(function ($data) {
+            $data['delivery_address'] = $data['delivery_address']?json_decode($data['delivery_address']):$data['delivery_address'];
+
+             $restaurantArray=array(
+                    "id"=>$data['restaurant']->id,
+                    "name"=>$data['restaurant']->name,
+                    "longitude"=>$data['restaurant']->longitude,
+                    "latitude"=>$data['restaurant']->latitude,
+                    "address"=>$data['restaurant']->address,
+                    "city"=>$data['restaurant']->city,
+                    "state"=>$data['restaurant']->stateInfo?->name,
+                    "zipcode"=>$data['restaurant']->zipcode,
+                    "logo"=>$data['restaurant']->logo,
+                );
+                unset($data['restaurant']);
+                $data['restaurant'] = $restaurantArray;
+
+            $data['restaurant'] = $data['restaurant'];
+            $data['delivery_man'] = $data['delivery_man']?Helpers::deliverymen_data_formatting([$data['delivery_man']]):$data['delivery_man'];
+            $data['is_reviewed'] =   $data['details_count'] >  Review::whereOrderId($data->id)->count() ? False :True ;
+            $data['is_dm_reviewed'] = $data['delivery_man'] ? DMReview::whereOrderId($data->id)->exists()  : True ;
+            return $data;
+        }, $paginator->items());
+        $data = [
+            'total_size' => $paginator->total(),
+            'limit' => $request['limit'],
+            'offset' => $request['offset'],
+            'orders' => $orders
+        ];
+        return response()->json($data, 200);
+    }
 }
