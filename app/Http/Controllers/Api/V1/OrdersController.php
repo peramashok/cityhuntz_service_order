@@ -30,7 +30,9 @@ use Illuminate\Support\Facades\DB;
 use MatanYadaev\EloquentSpatial\Objects\Point;
 use App\Models\DMReview;
 use App\Models\Review;
-
+use App\Models\SubscriptionSchedule;
+use App\Models\DeliveryMan;
+use App\Models\Category;
 class OrdersController extends Controller
 {
     /**
@@ -947,4 +949,371 @@ class OrdersController extends Controller
              ], 500);
         }
     }
+
+    /**
+     * customer or guest user orders list
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Resp
+     */
+     public function get_customer_order_list(Request $request)
+    {
+        try{
+            $validator = Validator::make($request->all(), [
+                'limit' => 'required',
+                'offset' => 'required',
+                'guest_id' => $request->user ? 'nullable' : 'required',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
+            }
+            $user_id = $request->user ? $request->user->id : $request['guest_id'];
+     
+            $paginator = Order::with(['restaurant', 'delivery_man.rating'])->withCount('details')->where(['user_id' => $user_id])->
+            whereIn('order_status', ['delivered','canceled','refund_requested','refund_request_canceled','refunded','failed', 'pending'])->Notpos()
+            ->whereNull('subscription_id')
+            ->when(!isset($request->user) , function($query){
+                $query->where('is_guest' , 1);
+            })
+
+            ->when(isset($request->user)  , function($query){
+                $query->where('is_guest' , 0);
+            })
+
+            ->latest()->paginate($request['limit'], ['*'], 'page', $request['offset']);
+            $orders = array_map(function ($data) {
+                $data['delivery_address'] = $data['delivery_address']?json_decode($data['delivery_address']):$data['delivery_address'];
+
+                 $restaurantArray=array(
+                        "id"=>$data['restaurant']->id,
+                        "name"=>$data['restaurant']->name,
+                        "longitude"=>$data['restaurant']->longitude,
+                        "latitude"=>$data['restaurant']->latitude,
+                        "address"=>$data['restaurant']->address,
+                        "city"=>$data['restaurant']->city,
+                        "state"=>$data['restaurant']->stateInfo?->name,
+                        "zipcode"=>$data['restaurant']->zipcode,
+                        "logo"=>$data['restaurant']->logo,
+                    );
+                    unset($data['restaurant']);
+                    $data['restaurant'] = $restaurantArray;
+
+                $data['restaurant'] = $data['restaurant'];
+                $data['delivery_man'] = $data['delivery_man']?Helpers::deliverymen_data_formatting([$data['delivery_man']]):$data['delivery_man'];
+                $data['is_reviewed'] =   $data['details_count'] >  Review::whereOrderId($data->id)->count() ? False :True ;
+                $data['is_dm_reviewed'] = $data['delivery_man'] ? DMReview::whereOrderId($data->id)->exists()  : True ;
+                return $data;
+            }, $paginator->items());
+            $data = [
+                'total_size' => $paginator->total(),
+                'limit' => $request['limit'],
+                'offset' => $request['offset'],
+                'orders' => $orders
+            ];
+            return response()->json(['status'=>'success', 'data'=>$data], 200);
+        } catch(\Exception $e){
+              return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getLine()."-".$e->getMessage()
+             ], 500);
+        }
+    }
+
+    /**
+     * customer or guest user detailed orders information
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Resp
+     */
+    public function get_order_details(Request $request)
+    {
+        try{
+            $validator = Validator::make($request->all(), [
+                'order_id' => 'required',
+                'guest_id' => $request->user ? 'nullable' : 'required',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
+            }
+            $user_id = $request->user ? $request->user->id : $request['guest_id'];
+            $order = Order::with('details','offline_payments','subscription.schedules')->where('user_id', $user_id)
+
+            ->when(!isset($request->user) , function($query){
+                $query->where('is_guest' , 1);
+            })
+
+            ->when(isset($request->user)  , function($query){
+                $query->where('is_guest' , 0);
+            })
+            ->find($request->order_id);
+            $details = $order?->details;
+
+            if ($details != null && $details->count() > 0) {
+                $storage = [];
+                foreach ($details as $item) {
+                    $item['add_ons'] = json_decode($item['add_ons']);
+                    $item['variation'] = json_decode($item['variation']);
+                    $item['food_details'] = json_decode($item['food_details'], true);
+                    $item['zone_id'] = (int) (isset($order->zone_id) ? $order->zone_id :  $order->restaurant->zone_id);
+                    array_push($storage, $item);
+                }
+                $data = $storage;
+                $subscription_schedules =  $order?->subscription?->schedules;
+                $offline_payment = isset($order->offline_payments) ? Helpers::offline_payment_formater($order->offline_payments) : null;
+
+                return response()->json(['status'=>'success', 'data'=>['order'=>$order, 'subscription_schedules'=> $subscription_schedules, 'offline_payment' => $offline_payment]
+                ], 200);
+            }
+
+            else {
+                return response()->json(['status'=>'failed','code' => 'order', 'message' => translate('messages.not_found')
+                ], 200);
+            }
+        } catch(\Exception $e){
+              return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getLine()."-".$e->getMessage()
+             ], 500);
+        }
+    }
+
+    /**
+     * get orders list based on status for admin portal
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Resp
+     */
+
+     public function getAllCustomersOrders( Request $request)
+    {
+        try{
+            $validator = Validator::make($request->all(), [
+                'order_status' => 'required|in:all,scheduled,pending,accepted,processing,food_on_the_way,delivered,canceled, failed,refunded,dine_in',
+                'pageno' => 'required|min:0',
+                'pagelength' => 'required|min:1' 
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
+            }
+
+            $key = explode(' ', $request['search']);
+            $status=$request->order_status;
+            Order::where(['checked' => 0])->update(['checked' => 1]);
+
+            $orders = Order::with([
+                    'customer:id,f_name,l_name,phone,email', 
+                    'restaurant' => function ($q) {
+                        $q->setEagerLoads([]); // removes default eager loads like restaurant_config
+                        $q->select('id', 'name'); // ONLY include these columns
+                    }     
+                ])
+                ->when(isset($request->zone), function ($query) use ($request) {
+                    return $query->whereHas('restaurant', function ($q) use ($request) {
+                        return $q->whereIn('zone_id', $request->zone);
+                    });
+                })
+                ->when($status == 'scheduled', function ($query) {
+                    return $query->whereRaw('created_at <> schedule_at');
+                })
+                ->when($status == 'searching_for_deliverymen', function ($query) {
+                    return $query->SearchingForDeliveryman();
+                })
+                ->when($status == 'pending', function ($query) {
+                    return $query->Pending();
+                })
+                ->when($status == 'accepted', function ($query) {
+                    return $query->AccepteByDeliveryman();
+                })
+                ->when($status == 'processing', function ($query) {
+                    return $query->Preparing();
+                })
+                ->when($status == 'food_on_the_way', function ($query) {
+                    return $query->FoodOnTheWay();
+                })
+                ->when($status == 'delivered', function ($query) {
+                    return $query->Delivered();
+                })
+                ->when($status == 'canceled', function ($query) {
+                    return $query->Canceled();
+                })
+                ->when($status == 'failed', function ($query) {
+                    return $query->failed();
+                })
+                ->when($status == 'requested', function ($query) {
+                    return $query->Refund_requested();
+                })
+                ->when($status == 'rejected', function ($query) {
+                    return $query->Refund_request_canceled();
+                })
+                ->when($status == 'refunded', function ($query) {
+                    return $query->Refunded();
+                })
+                ->when($status == 'scheduled', function ($query) {
+                    return $query->Scheduled();
+                })
+                ->when($status == 'on_going', function ($query) {
+                    return $query->Ongoing();
+                })
+                ->when($status == 'dine_in', function ($query) {
+                    return $query->where('order_type','dine_in');
+                })
+                ->when( !in_array($status,['all','scheduled','canceled','refund_requested','refunded','delivered','failed','dine_in'])  , function ($query) {
+                    return $query->OrderScheduledIn(30);
+                })
+                ->when(isset($request->vendor), function ($query) use ($request) {
+                    return $query->whereHas('restaurant', function ($query) use ($request) {
+                        return $query->whereIn('id', $request->vendor);
+                    });
+                })
+                ->when(isset($request->orderStatus) && $status == 'all', function ($query) use ($request) {
+                    return $query->whereIn('order_status', $request->orderStatus);
+                })
+                ->when(isset($request->scheduled) && $status == 'all', function ($query) {
+                    return $query->scheduled();
+                })
+                ->when(isset($request->order_type), function ($query) use ($request) {
+                    return $query->where('order_type', $request->order_type);
+                })
+                ->when($request?->from_date != null && $request?->to_date != null, function ($query) use ($request) {
+                    return $query->whereBetween('created_at', [$request->from_date . " 00:00:00", $request->to_date . " 23:59:59"]);
+                })
+                ->when(isset($key), function ($query) use ($key) {
+                    return $query->where(function ($q) use ($key) {
+                        foreach ($key as $value) {
+                            $q->orWhere('id', 'like', "%{$value}%")
+                                ->orWhere('order_status', 'like', "%{$value}%")
+                                ->orWhere('transaction_reference', 'like', "%{$value}%");
+                        }
+                    });
+                })
+                ->Notpos()
+                ->hasSubscriptionToday()
+                ->orderBy('schedule_at', 'desc');
+
+            $pageno = 0; $pagelength = 0; 
+            $totalrecords = $orders->count();
+            if (isset($request->pagelength, $request->pageno) && !empty($request->pagelength)) {
+                $pagelength = $request->pagelength;
+                $pageno = $request->pageno;
+            }    
+            $orders = $orders->latest()
+             ->skip(($pageno - 1) * $pagelength)
+             ->take($pagelength)
+             ->get();
+              
+
+            $data['data'] = $orders;
+            $data['current_page'] =$pageno ? $pageno : '1';
+            $data['total'] = $totalrecords;
+            $data['per_page'] = $pagelength ? $pagelength : '10';
+            $data['orderstatus'] = $request?->orderStatus ?? [];
+            $data['scheduled'] =  $request?->scheduled ?? 0;
+            $data['vendor_ids'] =  $request?->vendor ?? [];
+            $data['from_date'] =  $request?->from_date ?? null;
+            $data['to_date'] = $request?->to_date ?? null;
+            $data['order_type'] =  $request?->order_type ?? null;
+           
+            return response()->json(['status' => 'success', 'data' => $data], 200);
+
+         } catch(\Exception $e){
+              return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getLine()."-".$e->getMessage()
+             ], 500);
+        }
+    }
+
+
+    public function getOrderDetails(Request $request, $id)
+    {
+        try{
+        $order = Order::with(['restaurant.stateInfo', 'offline_payments','payments','subscription','subscription.schedule_today','details', 'refund','restaurant' => function ($query) {
+                   
+                return $query->setEagerLoads([])->select('id', 'name','address','zipcode', 'state', 'city', 'longitude', 'latitude')->with('stateInfo')->withCount('orders');
+        }, 'customer' => function ($query) {
+            return $query->withCount('orders');
+        }, 'delivery_man' => function ($query) {
+            return $query->withCount('orders');
+        }, 'details.food' => function ($query) {
+            return $query->withoutGlobalScope(RestaurantScope::class);
+        }, 'details.campaign' => function ($query) {
+            return $query->withoutGlobalScope(RestaurantScope::class);
+        }])->where(['id' => $id])->Notpos()->first();
+
+        if(is_null($order)){
+             return response()->json([
+               'status' => 'failed',
+               'message' => "Order details not food "
+             ], 400);
+        }
+        
+          if (($order?->restaurant?->self_delivery_system && $order?->restaurant?->restaurant_model == 'commission') ||
+            ($order?->restaurant?->restaurant_model == 'subscription' &&   $order?->restaurant?->restaurant_sub?->self_delivery == 1)  ) {
+                $deliveryMen = DeliveryMan::with('last_location')->where('restaurant_id', $order->restaurant_id)->available()->active()->get();
+
+            } else {
+                if($order->restaurant !== null){
+                    $deliveryMen = DeliveryMan::with('last_location')->where('zone_id', $order->restaurant->zone_id)->where(function($query)use($order){
+                            $query->where('vehicle_id',$order->vehicle_id)->orWhereNull('vehicle_id');
+                    })
+                    ->available()->active()->get();
+                } else{
+                    $deliveryMen = DeliveryMan::with(['last_location', 'wallet'])->where('zone_id', '=', NULL)->where('vehicle_id',$order->vehicle_id)->active()->get();
+                }
+            }
+
+            $category = $request->query('category_id', 0);
+            // $sub_category = $request->query('sub_category', 0);
+            $categories = Category::active()->get();
+            $keyword = $request->query('keyword', false);
+            $key = explode(' ', $keyword);
+            $products = Food::withoutGlobalScope(RestaurantScope::class)->where('restaurant_id', $order->restaurant_id)
+                ->when($category, function ($query) use ($category) {
+                    $query->whereHas('category', function ($q) use ($category) {
+                        return $q->whereId($category)->orWhere('parent_id', $category);
+                    });
+                })
+                ->when($keyword, function ($query) use ($key) {
+                    return $query->where(function ($q) use ($key) {
+                        foreach ($key as $value) {
+                            $q->orWhere('name', 'like', "%{$value}%");
+                        }
+                    });
+                })
+                ->latest()->paginate(10);
+            $editing = false;
+            
+            $deliveryMen = Helpers::deliverymen_list_formatting(data:$deliveryMen, restaurant_lat: $order?->restaurant?->latitude, restaurant_lng: $order?->restaurant?->longitude);
+
+
+            $selected_delivery_man = DeliveryMan::with('last_location')->where('id',$order->delivery_man_id)->first() ?? [];
+            if($order->delivery_man){
+                $selected_delivery_man = Helpers::deliverymen_list_formatting(data:$selected_delivery_man, restaurant_lat: $order?->restaurant?->latitude, restaurant_lng: $order?->restaurant?->longitude , single_data:true);
+            }
+
+            $data['order']=$order;
+            $data['deliveryMen']=$deliveryMen;
+            $data['categories']=$categories;
+            $data['products']=$products;
+            $data['category']=$category;
+            $data['keyword']=$keyword;
+            $data['editing']=$editing;
+            $data['selected_delivery_man']=$selected_delivery_man;
+              return response()->json([
+               'status' => 'success',
+               'data' => $data
+            ], 200);
+        
+        } catch(\Exception $e){
+              return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getLine()."-".$e->getMessage()
+             ], 500);
+        }
+    }
+
 }
