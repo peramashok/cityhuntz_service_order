@@ -928,7 +928,7 @@ class OrdersController extends Controller
                 }
 
                 unset($order['offline_payments']);
-               // unset($order['details']);
+                unset($order['details']);
             } else{
                 return response()->json([
                    'status' => 'failed',
