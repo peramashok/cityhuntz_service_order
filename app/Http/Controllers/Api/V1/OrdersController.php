@@ -1162,9 +1162,9 @@ class OrdersController extends Controller
                 ->when( !in_array($status,['all','scheduled','canceled','refund_requested','refunded','delivered','failed','dine_in'])  , function ($query) {
                     return $query->OrderScheduledIn(30);
                 })
-                ->when(isset($request->vendor), function ($query) use ($request) {
-                    return $query->whereHas('restaurant', function ($query) use ($request) {
-                        return $query->whereIn('id', $request->vendor);
+                ->when(isset($request->vendor) && count($request->vendor) > 0, function ($query) use ($request) {
+                    $query->whereHas('restaurant', function ($q) use ($request) {
+                        $q->whereIn('id', $request->vendor);
                     });
                 })
                 ->when(isset($request->orderStatus) && $status == 'all', function ($query) use ($request) {
