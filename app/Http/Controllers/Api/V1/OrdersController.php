@@ -927,8 +927,7 @@ class OrdersController extends Controller
                     $order->subscription['canceled_count']= (int) $order->subscription->logs()->whereOrderStatus('canceled')->count();
                 }
 
-                unset($order['offline_payments']);
-                unset($order['details']);
+                 
             } else{
                 return response()->json([
                    'status' => 'failed',

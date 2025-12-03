@@ -37,7 +37,10 @@ class OrderDetail extends Model
     {
         return $this->belongsTo(Food::class,'food_id');
     }
- 
+    public function campaign()
+    {
+        return $this->belongsTo(ItemCampaign::class, 'item_campaign_id');
+    }
     protected static function boot(){
         parent::boot();
         static::addGlobalScope('order', function (Builder $builder) {
