@@ -306,7 +306,7 @@ class OrdersController extends Controller
               return response()->json([
                'status' => 'failed',
                'message' => "Something went wrong. ",
-               'error'=>$e->getMessage()
+                'error'=>$e->getLine()." ".$e->getMessage()
              ], 500);
         }
     }
@@ -326,16 +326,15 @@ class OrdersController extends Controller
         $distance_data=$dataArray['distance_data'];
 
        
-        $restaurant = Restaurant::with(['discount', 'restaurant_sub'])->selectRaw('*, IF(((select count(*) from `restaurant_schedule` where `restaurants`.`id` = `restaurant_schedule`.`restaurant_id` and `restaurant_schedule`.`day` = '.$schedule_at->format('w').' and `restaurant_schedule`.`opening_time` < "'.$schedule_at->format('H:i:s').'" and `restaurant_schedule`.`closing_time` >"'.$schedule_at->format('H:i:s').'") > 0), true, false) as open')->where('id', $restaurantId)->first();
+        $restaurant = Restaurant::with(['discount', 'restaurant_sub'])->selectRaw('*, IF(((select count(*) from `restaurant_schedule` where `restaurants`.`id` = `restaurant_schedule`.`restaurant_id` and `restaurant_schedule`.`day` = '.$schedule_at->format('w').' and `restaurant_schedule`.`opening_time` < "'.$schedule_at->format('H:i:s').'" and `restaurant_schedule`.`closing_time` >"'.$schedule_at->format('H:i:s').'") > 0), true, false) as open')->where('id', $request->restaurant_id)->first();
 
-
-
-        $restaurant = Restaurant::with(['discount', 'restaurant_sub'])->where('id', $restaurantId)->first();
+       // $restaurant = Restaurant::with(['discount', 'restaurant_sub'])->where('id', $restaurantId)->open()->first();
 
         if(!$restaurant) {
             return  ['status'=>'failed', 'code' => 'order_time', 'message' => translate('messages.restaurant_not_found')];
         }
 
+ 
 
         $rest_sub=$restaurant?->restaurant_sub;
         if ($restaurant->restaurant_model == 'subscription' && isset($rest_sub)) {
@@ -352,6 +351,7 @@ class OrdersController extends Controller
         if($request->schedule_at && !$restaurant->schedule_order){
             return  ['status'=>'failed', 'code' => 'schedule_at', 'message' => translate('messages.schedule_order_not_available')];
         }
+
 
         if($restaurant->open == false && !$request->subscription_order){
           return  ['status'=>'failed', 'code' => 'order_time', 'message' => translate('messages.restaurant_is_closed_at_order_time')];
