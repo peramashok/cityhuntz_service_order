@@ -1378,4 +1378,78 @@ class Helpers
 
         return $result;
     }
+
+
+     public static function deliverymen_list_formatting($data , $restaurant_lat = null , $restaurant_lng = null , $single_data = false )
+    {
+        $storage = [];
+        $map_api_key = BusinessSetting::where(['key' => 'map_api_key_server'])->first()?->value ?? null;
+
+        if($single_data ==  true){
+            $item=$data;
+                if( $restaurant_lat &&  $restaurant_lng && $item->last_location){
+                    $originCoordinates =[
+                        $restaurant_lat,
+                        $restaurant_lng
+                    ];
+                    $destinationCoordinates =[
+                        $item->last_location->latitude,
+                        $item->last_location->longitude
+                    ];
+                    $distance = self::get_distance($originCoordinates, $destinationCoordinates);
+
+                    $distance =  round($distance,2).' KM';
+                }
+
+                $data = [
+                    'id' => $item['id'],
+                    'name' => $item['f_name'] . ' ' . $item['l_name'],
+                    'image' => $item['image'],
+                    'image_full_url' => $item['image_full_url'],
+                    'current_orders' => $item['current_orders'],
+                    'lat' => $item->last_location ? $item->last_location->latitude : '0',
+                    'lng' => $item->last_location ? $item->last_location->longitude : '0',
+                    'location' => $item->last_location ? $item->last_location->location : '',
+                    'distance' => $distance ?? '',
+                    'wallet' => $item['wallet'],
+                ];
+
+                return $data;
+        }
+
+        foreach ($data as $item) {
+        if( $restaurant_lat &&  $restaurant_lng && $item->last_location){
+ 
+            $originCoordinates =[
+                $restaurant_lat,
+                $restaurant_lng
+            ];
+            $destinationCoordinates =[
+                $item->last_location->latitude,
+                $item->last_location->longitude
+            ];
+            $distance = self::get_distance($originCoordinates, $destinationCoordinates);
+            $distance =  round($distance,2).' KM';
+        }
+
+            $storage[] = [
+                'id' => $item['id'],
+                'name' => $item['f_name'] . ' ' . $item['l_name'],
+                'image' => $item['image'],
+                'image_full_url' => $item['image_full_url'],
+                'current_orders' => $item['current_orders'],
+                'lat' => $item->last_location ? $item->last_location->latitude : '0',
+                'lng' => $item->last_location ? $item->last_location->longitude : '0',
+                'location' => $item->last_location ? $item->last_location->location : '',
+                'distance' => $distance ?? '',
+                'wallet' => $item['wallet'],
+                // 'wallet' => data_get($item, 'wallet'),
+            ];
+        }
+
+        $data = $storage;
+
+        return $data;
+    }
+
 }

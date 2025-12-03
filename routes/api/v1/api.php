@@ -22,6 +22,12 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
          Route::controller(VendorOrdersController::class)->group(function () {
              Route::post('restaurant/order-details/{restaurant}', 'getRestaurantOrder')->name('view-restaurant-order');
          });
+
+
+         Route::prefix('order')->controller(OrdersController::class)->group(function () {
+             Route::post('list', 'getAllCustomersOrders')->name('list');
+             Route::get('details/{id}', 'getOrderDetails')->name('details');
+         });
     });
 
    Route::group(['prefix' => 'vendor', 'middleware' => ['auth:api']], function () {
@@ -54,7 +60,7 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
              Route::get('list', 'get_customer_order_list');
             // Route::get('order-subscription-list', 'OrderController@get_order_subscription_list');
             // Route::get('running-orders', 'OrderController@get_running_orders');
-            // Route::get('details', 'OrderController@get_order_details');
+            Route::get('details', 'get_order_details');
             Route::post('place', 'place_order');  // visitor logs
             Route::post('cancel', 'cancel_order');
             // Route::post('refund-request', 'OrderController@refund_request');

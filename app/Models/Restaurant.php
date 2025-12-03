@@ -219,7 +219,7 @@ class Restaurant extends Model
 
     public function stateInfo()
     {
-        return $this->belongsTo(State::class);
+        return $this->belongsTo(State::class, 'state');
     }
 
     public function getGstStatusAttribute()

@@ -168,4 +168,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(Restaurant::class, 'vendor_id');
     }
+
+     public function stateInfo()
+    {
+        return $this->belongsTo(State::class, 'state');
+    }
 }
