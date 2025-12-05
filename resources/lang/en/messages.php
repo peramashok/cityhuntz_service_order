@@ -6487,4 +6487,5 @@
   'profile_picture_updated' => 'Profile picture updated successfully',
   'Item_already_exists' => 'Item already exists',
   'order_canceled_successfully_and_for_refund_amount_contact_admin' => 'Order canceled successfully and for refund amount contact admin',
+  'order_confirmation_warning' => 'Order confirmation warning',
 );

@@ -1045,7 +1045,7 @@ class OrdersController extends Controller
             ->when(isset($request->user)  , function($query){
                 $query->where('is_guest' , 0);
             })
-            ->find($request->order_id);
+            ->where('id',$request->order_id)->first();
             $details = $order?->details;
 
             if ($details != null && $details->count() > 0) {
@@ -1064,7 +1064,6 @@ class OrdersController extends Controller
                 return response()->json(['status'=>'success', 'data'=>['order'=>$order, 'subscription_schedules'=> $subscription_schedules, 'offline_payment' => $offline_payment]
                 ], 200);
             }
-
             else {
                 return response()->json(['status'=>'failed','code' => 'order', 'message' => translate('messages.not_found')
                 ], 200);
@@ -1229,6 +1228,7 @@ class OrdersController extends Controller
     public function getOrderDetails(Request $request, $id)
     {
         try{
+           
         $order = Order::with(['restaurant.stateInfo', 'offline_payments','payments','subscription','subscription.schedule_today','details', 'refund','restaurant' => function ($query) {
                    
                 return $query->setEagerLoads([])->select('id', 'name','address','zipcode', 'state', 'city', 'longitude', 'latitude')->with('stateInfo')->withCount('orders');
