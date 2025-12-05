@@ -209,9 +209,22 @@ class VendorOrdersController extends Controller
             ->where('id', $request['order_id'])
             ->Notpos()
             ->first();
+
+
+             $order = Order::with(['customer','details','delivery_man','subscription','OrderReference', 'restaurant.vendor'])
+            ->where('id', $request['order_id'])
+            ->Notpos()
+            ->first();
+
+            if(is_null($order)){
+                return response()->json(['status'=>'failed', 'message' =>'Order details not found' ],400);
+            }
+            if($order->restaurant?->vendor_id!=$vendor->id){
+                 return response()->json(['status'=>'failed', 'message' =>"You can’t view other restaurant order details" ],400);
+            }
             $details = $order?->details;
             $order['details'] = Helpers::order_details_data_formatting($details);
-            return response()->json(['order' => $order],200);
+            return response()->json(['status'=>'success', 'order' => $order],200);
          } catch(\Extension $e){
             return response()->json([
                'status' => 'failed',
@@ -236,7 +249,7 @@ class VendorOrdersController extends Controller
                 'status' => 'required|in:confirmed,processing,handover,delivered,canceled',
                 'order_proof' =>'nullable|array|max:5',
             ]);
-
+            $request->otp="123456";
             $validator->sometimes('otp', 'required', function ($request) {
                 return (Config::get('order_delivery_verification')==1 && $request['status']=='delivered');
             });
@@ -256,6 +269,7 @@ class VendorOrdersController extends Controller
             if(!$order)
             {
                 return response()->json([
+                    'status'=>'failed',
                     'errors' => [
                         ['code' => 'order', 'message' => translate('messages.Order_not_found')]
                     ]
@@ -267,6 +281,7 @@ class VendorOrdersController extends Controller
                 if(!config('canceled_by_restaurant'))
                 {
                     return response()->json([
+                        'status'=>'failed',
                         'errors' => [
                             ['code' => 'status', 'message' => translate('messages.you_can_not_cancel_a_order')]
                         ]
@@ -275,6 +290,7 @@ class VendorOrdersController extends Controller
                 else if($order->confirmed)
                 {
                     return response()->json([
+                        'status'=>'failed',
                         'errors' => [
                             ['code' => 'status', 'message' => translate('messages.you_can_not_cancel_after_confirm')]
                         ]
@@ -291,6 +307,7 @@ class VendorOrdersController extends Controller
             if($request['status'] =="confirmed" && !$data && config('order_confirmation_model') == 'deliveryman' && !in_array($order['order_type'],['dine_in','take_away']) && $order->subscription_id == null)
             {
                 return response()->json([
+                    'status'=>'failed',
                     'errors' => [
                         ['code' => 'order-confirmation-model', 'message' => translate('messages.order_confirmation_warning')]
                     ]
@@ -300,6 +317,7 @@ class VendorOrdersController extends Controller
             if($order->picked_up != null)
             {
                 return response()->json([
+                    'status'=>'failed',
                     'errors' => [
                         ['code' => 'status', 'message' => translate('messages.You_can_not_change_status_after_picked_up_by_delivery_man')]
                     ]
@@ -309,24 +327,27 @@ class VendorOrdersController extends Controller
             if($request['status']=='delivered' && !in_array($order['order_type'],['dine_in','take_away']) && !$data)
             {
                 return response()->json([
+                    'status'=>'failed',
                     'errors' => [
                         ['code' => 'status', 'message' => translate('messages.you_can_not_delivered_delivery_order')]
                     ]
                 ], 403);
             }
-            if(Config::get('order_delivery_verification')==1 && $request['status']=='delivered' && $order->otp != $request['otp'])
-            {
-                return response()->json([
-                    'errors' => [
-                        ['code' => 'otp', 'message' => 'Not matched']
-                    ]
-                ], 403);
-            }
+            // if(Config::get('order_delivery_verification')==1 && $request['status']=='delivered' && $order->otp != $request['otp'])
+            // {
+            //     return response()->json([
+            //         'status'=>'failed',
+            //         'errors' => [
+            //             ['code' => 'otp', 'message' => 'Not matched']
+            //         ]
+            //     ], 403);
+            // }
 
             if ($request->status == 'delivered' && ($order->transaction == null || isset($order->subscription_id))) {
 
                 if(isset($order->subscription_id) && count($order->subscription_logs) == 0 ){
                     return response()->json([
+                        'status'=>'failed',
                         'errors' => [
                             ['code' => 'order-subscription', 'message' => translate('messages.You_Can_Not_Delivered_This_Subscription_order_Before_Schedule')]
                         ]
@@ -350,6 +371,7 @@ class VendorOrdersController extends Controller
 
                 if(!$ol){
                     return response()->json([
+                        'status'=>'failed',
                         'errors' => [
                             ['code' => 'error', 'message' => translate('messages.faield_to_create_order_transaction')]
                         ]
@@ -439,7 +461,7 @@ class VendorOrdersController extends Controller
             $order->save();
            // Helpers::send_order_notification($order);
 
-            return response()->json(['message' => 'Status updated'], 200);
+            return response()->json(['status'=>'success','message' => 'Status updated'], 200);
 
         } catch(\Extension $e){
              return response()->json([

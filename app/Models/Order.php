@@ -121,8 +121,6 @@ class Order extends Model
         $this->attributes['delivery_charge'] = round($value, 3);
     }
 
-    
-
     public function details()
     {
         return $this->hasMany(OrderDetail::class);
