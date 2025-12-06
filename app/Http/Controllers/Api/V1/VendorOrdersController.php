@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Config;
 
 class VendorOrdersController extends Controller
 {
-   /**
+    /**
      * completed orders list for ve
      * @param Illuminate\Http\Request
      * @return Illuminate\Http\Resp
@@ -527,6 +527,133 @@ class VendorOrdersController extends Controller
                    'message' => "Something went wrong. ",
                    'error'=>$e->getMessage()
                  ], 500);
+        }
+    }
+
+
+
+    /**
+     * completed orders list for ve
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Resp
+     */
+    public function getAllCurrentReservedBookATableOrders(Request $request)
+    {
+        try{
+            $vendor = auth()->user();
+
+            $restaurant=$vendor?->restaurants[0];
+            $data =0;
+            if (($restaurant?->restaurant_model == 'subscription' && $restaurant?->restaurant_sub?->self_delivery == 1)  || ($restaurant?->restaurant_model == 'commission' &&  $restaurant?->self_delivery_system == 1) ){
+             $data =1;
+            }
+            $orders = Order::where('order_type', 'book_a_table')->whereHas('restaurant.vendor', function($query) use($vendor){
+                $query->where('id', $vendor->id);
+            })
+            ->with('customer')
+            ->where(function($query)use($data){
+                if(config('order_confirmation_model') == 'restaurant' || $data)
+                {
+                    $query->whereIn('order_status', ['confirmed', 'processing', 'handover','picked_up','canceled','failed' ])
+                    ->hasSubscriptionInStatus(['confirmed', 'processing', 'handover','picked_up','canceled','failed' ]);
+                }
+                else
+                {
+                    $query->whereIn('order_status', ['confirmed', 'processing', 'handover','picked_up','canceled','failed' ])
+                    ->hasSubscriptionInStatus(['confirmed', 'processing', 'handover','picked_up','canceled','failed'])
+                    ->orWhere(function($query){
+                        $query->where('payment_status','paid')->where('order_status', 'accepted');
+                    })
+                    ->orWhere(function($query){
+                        $query->where('order_status','pending')->whereIn('order_type', ['take_away' , 'dine_in']);
+                    });
+                }
+            })
+            ->NotDigitalOrder()
+            ->Notpos()
+            ->orderBy('schedule_at', 'desc')
+            ->get();
+            $orders= Helpers::order_data_formatting($orders, true);
+            return response()->json(['status'=>'success', 'data'=>$orders], 200);
+        } catch(\Extension $e){
+             return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getMessage()
+             ], 500);
+        }
+    }
+
+
+       /**
+     * get all completed reserved orders list
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Resp
+     */
+     public function getAllCompletedReservedOrders(Request $request)
+    {
+        try{
+            $validator = Validator::make($request->all(), [
+                'limit' => 'required',
+                'offset' => 'required',
+                'status' => 'required' ,
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => Helpers::error_processor($validator)], 403);
+            }
+
+            $vendor = auth()->user();
+            $paginator = Order::where('order_type', 'book_a_table')->whereHas('restaurant.vendor', function($query) use($vendor){
+                $query->where('id', $vendor->id);
+            })
+            ->with('customer','refund')
+            ->when($request->status == 'all', function($query){
+                return $query->whereIn('order_status', ['refunded','refund_requested','refund_request_canceled', 'delivered','canceled','failed' ]);
+            })
+            ->when($request->status != 'all', function($query)use($request){
+                return $query->where('order_status', $request->status);
+            })
+            ->Notpos()
+            ->latest()
+            ->paginate($request['limit'], ['*'], 'page', $request['offset']);
+            $orders= Helpers::order_data_formatting($paginator->items(), true);
+            return response()->json(['status'=>'success', 'data'=>$orders], 200);
+        } catch(\Extension $e){
+             return response()->json([
+                   'status' => 'failed',
+                   'message' => "Something went wrong. ",
+                   'error'=>$e->getMessage()
+                 ], 500);
+        }
+    }
+
+
+       /**
+     * get all reserved orders list
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Resp
+     */
+    public function getAllReservedOrdersList(Request $request)
+    {
+        try{
+            $vendor = auth()->user();
+            $paginator = Order::where('order_type', 'book_a_table')->whereHas('restaurant.vendor', function($query) use($vendor){
+                $query->where('id', $vendor?->id);
+            })
+            ->with('customer')
+            ->Notpos()
+            ->orderBy('schedule_at', 'desc')
+            ->NotDigitalOrder()
+             ->paginate($request['limit'], ['*'], 'page', $request['offset']);
+            $orders= Helpers::order_data_formatting($paginator->items(), true);
+            return response()->json(['status'=>'success', 'data'=>$orders], 200);
+        } catch(\Extension $e){
+             return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getMessage()
+             ], 500);
         }
     }
 }

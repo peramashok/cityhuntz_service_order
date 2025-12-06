@@ -93,14 +93,22 @@ class CartController extends Controller
         if($request->order_type=='dine_in' || $request->order_type=='book_a_table'){
             $cart = Cart::select('restaurant_id')->where('item_type',$model)->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
             if(!empty($cart) && $cart->restaurant_id!=$request->restaurant_id){
-                return response()->json(['status'=>'failed','message'=>"Not allowed to book multiple restaurants for dine in or book a table"], 200);
+                return response()->json(['status'=>'failed','message'=>"Not allowed to book multiple restaurants for dine in or book a table"], 400);
+            }
+        }
+
+        $cartDetails = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get();
+        if ($cartDetails->count() > 0) {
+
+            $firstRecord = $cartDetails->first();
+
+            if($firstRecord->order_type!=$request->order_type){
+                return response()->json(['status'=>'failed','message'=>"Not allowed to change order type and your previously added type is ".str_replace('_', ' ', $firstRecord->order_type)], 400);
             }
         }
 
         $cart = Cart::where('item_id',$request->item_id)->where('item_type',$model)->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
-
         if($cart){
-            
             if($request->quantity>0){
                 $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
                 $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
@@ -115,6 +123,8 @@ class CartController extends Controller
             }
         }
 
+
+
         if($item?->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
             return response()->json(['status'=>'failed','code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
         }
@@ -128,6 +138,7 @@ class CartController extends Controller
 
         if(is_null($cart)){
             $cart = new Cart();
+            $cart->order_type =$request->order_type;
             $cart->user_id = $user_id;
             $cart->item_id = $request->item_id;
             $cart->restaurant_id = $request->restaurant_id;

@@ -193,7 +193,7 @@ class OrdersController extends Controller
             $validator = Validator::make($request->all(), [
                 'order_amount' => 'required',
                 'payment_method'=>'required|in:cash_on_delivery,digital_payment,wallet,offline_payment',
-                'order_type' => 'required|in:take_away,dine_in,delivery',
+                'order_type' => 'required|in:take_away,dine_in,delivery,book_a_table',
                 'restaurant_id' => 'required|array|min:1',
                 'restaurant_id.*' => 'integer|exists:restaurants,id',
                 'distance' => 'required_if:order_type,delivery',
@@ -427,7 +427,21 @@ class OrdersController extends Controller
         }
 
 
-        if(($request['order_type'] != 'take_away' || $request['order_type'] != 'dine_in') && !$restaurant->free_delivery &&  !isset($delivery_charge) && ($restaurant->restaurant_model == 'subscription' && isset($restaurant->restaurant_sub) && $restaurant->restaurant_sub->self_delivery == 1  || $restaurant->restaurant_model == 'commission' &&  $restaurant->self_delivery_system == 1 )){
+        // if(($request['order_type'] != 'take_away' || $request['order_type'] != 'dine_in') && !$restaurant->free_delivery &&  !isset($delivery_charge) && ($restaurant->restaurant_model == 'subscription' && isset($restaurant->restaurant_sub) && $restaurant->restaurant_sub->self_delivery == 1  || $restaurant->restaurant_model == 'commission' &&  $restaurant->self_delivery_system == 1 )){
+
+        if (
+            !in_array($request['order_type'], ['take_away', 'dine_in', 'book_a_table'])
+            && !$restaurant->free_delivery
+            && !isset($delivery_charge)
+            && (
+                ($restaurant->restaurant_model == 'subscription'
+                    && isset($restaurant->restaurant_sub)
+                    && $restaurant->self_delivery_system == 1)
+                ||
+                ($restaurant->restaurant_model == 'commission'
+                    && $restaurant->self_delivery_system == 1)
+            )
+        ) {
                 $per_km_shipping_charge = $restaurant->per_km_shipping_charge;
                 $minimum_shipping_charge = $restaurant->minimum_shipping_charge;
                 $maximum_shipping_charge = $restaurant->maximum_shipping_charge;
@@ -447,7 +461,9 @@ class OrdersController extends Controller
 
         $original_delivery_charge = ($request->distance * $per_km_shipping_charge > $minimum_shipping_charge) ? $request->distance * $per_km_shipping_charge + $extra_charges  : $minimum_shipping_charge + $extra_charges;
 
-        if($request['order_type'] == 'take_away' || $request['order_type'] == 'dine_in')
+        //if($request['order_type'] == 'take_away' || $request['order_type'] == 'dine_in')
+
+        if(in_array($request['order_type'], ['take_away', 'dine_in', 'book_a_table']))
         {
             $per_km_shipping_charge = 0;
             $minimum_shipping_charge = 0;
@@ -513,6 +529,10 @@ class OrdersController extends Controller
             $order_status ='confirmed';
         }
 
+        if(in_array($request['order_type'], ['dine_in', 'book_a_table'])){
+            $order_status ='confirmed';
+        }
+
         $order->order_no = $orderId;
         $order->distance = $distance_data;
         $order->user_id = $request->user ? $request->user->id : $request['guest_id'];
@@ -524,6 +544,13 @@ class OrdersController extends Controller
         $order->transaction_reference = null;
         $order->order_note = $request['order_note'];
         $order->order_type = $request['order_type'];
+
+        if($request->order_type=='book_a_table'){
+            $order->tables_nos = $request->tables_nos;
+            $order->from_time = $request->from_time;
+            $order->to_time = $request->to_time;
+            $order->no_of_persons = $request->no_of_persons ?? 0;
+        }
         $order->restaurant_id = $restaurantId;
         $order->delivery_charge = round($delivery_charge, config('round_up_to_digit'))??0;
         $order->original_delivery_charge = round($original_delivery_charge, config('round_up_to_digit'));

@@ -38,6 +38,11 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
             Route::get('completed-orders', 'get_completed_orders');
             Route::get('all-orders', 'get_all_orders');
             Route::post('update-order-status', 'update_order_status');
+            //get reserved orders
+            Route::get('current_reserved_orders', 'getAllCurrentReservedBookATableOrders');
+            Route::get('get_completed_reserved_orders', 'getAllCompletedReservedOrders');
+
+            Route::get('all-reserved-orders', 'getAllReservedOrdersList');
         });
     });
 
@@ -70,6 +75,8 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
             // Route::put('offline-payment', 'OrderController@offline_payment');
             // Route::put('offline-payment-update', 'OrderController@update_offline_payment_info');
         });
+
+
 
         Route::prefix('cart')->controller(CartController::class)->group(function () {
             Route::get('list', 'get_carts');
