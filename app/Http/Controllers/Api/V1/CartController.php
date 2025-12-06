@@ -45,6 +45,7 @@ class CartController extends Controller
    public function add_to_cart(Request $request)
     {
         $validator = Validator::make($request->all(), [
+            'order_type' => 'required|in:take_away,dine_in,delivery,book_a_table',
             'guest_id' => $request->user ? 'nullable' : 'required',
             'item_id' => [
               'required',
@@ -87,15 +88,19 @@ class CartController extends Controller
             $model = \App\Models\ItemCampaign::class;
         }
 
-
-
         $item = $request->model === 'Food' ? Food::find($request->item_id) : ItemCampaign::find($request->item_id);
+
+        if($request->order_type=='dine_in' || $request->order_type=='book_a_table'){
+            $cart = Cart::select('restaurant_id')->where('item_type',$model)->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
+            if(!empty($cart) && $cart->restaurant_id!=$request->restaurant_id){
+                return response()->json(['status'=>'failed','message'=>"Not allowed to book multiple restaurants for dine in or book a table"], 200);
+            }
+        }
 
         $cart = Cart::where('item_id',$request->item_id)->where('item_type',$model)->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
 
-
         if($cart){
-            // return response()->json(['status'=>'failed','code' => 'cart_item', 'message' => translate('messages.Item_already_exists')], 403);
+            
             if($request->quantity>0){
                 $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
                 $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
