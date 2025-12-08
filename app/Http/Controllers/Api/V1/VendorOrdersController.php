@@ -410,7 +410,7 @@ class VendorOrdersController extends Controller
                         $imageDocuUrl = "";
                          
                         $image_profile_pic = rand() . '.' . $file->getClientOriginalExtension();
-                        $relativePath = "category_imgs" . "/" . date("Y") . "/" . date("M") . "/" . $image_profile_pic;
+                        $relativePath = "orders" . "/" . date("Y") . "/" . date("M") . "/" . $image_profile_pic;
                         $imageRespose = Helpers::imageUploadToDrive($file, null, $relativePath, $image_profile_pic);
                         if($imageRespose['success']){
                             $image_name = $imageRespose['url'];

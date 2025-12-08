@@ -18,98 +18,140 @@ class CartController extends Controller
 {
     public function get_carts(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'guest_id' => $request->user ? 'nullable' : 'required',
-        ]);
+        try{
+            $validator = Validator::make($request->all(), [
+                'guest_id' => $request->user ? 'nullable' : 'required',
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['status'=>'failed','errors' => Helpers::error_processor($validator)], 403);
+            if ($validator->fails()) {
+                return response()->json(['status'=>'failed','errors' => Helpers::error_processor($validator)], 403);
+            }
+            $user_id = $request->user ? $request->user->id : $request['guest_id'];
+            $is_guest = $request->user ? 0 : 1;
+            $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
+            ->map(function ($data) {
+                $data->restaurant_name =$data->restaurant?->name;
+                $data->add_on_ids = json_decode($data->add_on_ids,true);
+                $data->add_on_qtys = json_decode($data->add_on_qtys,true);
+                $data->variations = json_decode($data->variations,true);
+                $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
+                $data->add_on_qtys, false, app()->getLocale());
+                unset($data->restaurant);
+                return $data;
+            });
+            return response()->json(['status'=>'success','data'=>$carts], 200);
+        } catch(\Extension $e){
+             return response()->json([
+                   'status' => 'failed',
+                   'message' => "Something went wrong. ",
+                   'error'=>$e->getMessage()
+                 ], 500);
         }
-        $user_id = $request->user ? $request->user->id : $request['guest_id'];
-        $is_guest = $request->user ? 0 : 1;
-        $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
-        ->map(function ($data) {
-            $data->restaurant_name =$data->restaurant?->name;
-            $data->add_on_ids = json_decode($data->add_on_ids,true);
-            $data->add_on_qtys = json_decode($data->add_on_qtys,true);
-            $data->variations = json_decode($data->variations,true);
-            $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
-            $data->add_on_qtys, false, app()->getLocale());
-            unset($data->restaurant);
-            return $data;
-        });
-        return response()->json(['status'=>'success','data'=>$carts], 200);
     }
 
 
    public function add_to_cart(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'order_type' => 'required|in:take_away,dine_in,delivery,book_a_table',
-            'guest_id' => $request->user ? 'nullable' : 'required',
-            'item_id' => [
-              'required',
-               Rule::exists('food', 'id')->whereNull('deleted_at'),
-             ],
-
-            'model' => 'required|string|in:Food,ItemCampaign',
-            'price' => 'required|numeric',
-            'variation_options' => 'nullable|array',
-            'add_on_ids' => 'nullable|array',
-            'add_on_qtys'=>'nullable|array',
-            'variations'=>'nullable|array',
-            'quantity' => 'required|integer|min:0',
-            'restaurant_id' => [
+        try{
+            $validator = Validator::make($request->all(), [
+                'order_type' => 'required|in:take_away,dine_in,delivery,book_a_table',
+                'guest_id' => $request->user ? 'nullable' : 'required',
+                'item_id' => [
                   'required',
-                   Rule::exists('restaurants', 'id')->whereNull('deleted_at'),
-            ]
-        ]);
+                   Rule::exists('food', 'id')->whereNull('deleted_at'),
+                 ],
 
-        if ($validator->fails()) {
-            return response()->json(['status'=>'failed','errors' => Helpers::error_processor($validator)], 403);
-        }
+                'model' => 'required|string|in:Food,ItemCampaign',
+                'price' => 'required|numeric',
+                'variation_options' => 'nullable|array',
+                'add_on_ids' => 'nullable|array',
+                'add_on_qtys'=>'nullable|array',
+                'variations'=>'nullable|array',
+                'quantity' => 'required|integer|min:0',
+                'restaurant_id' => [
+                      'required',
+                       Rule::exists('restaurants', 'id')->whereNull('deleted_at'),
+                ]
+            ]);
 
-        $foodData=Food::where('id', $request->item_id)->where('restaurant_id', $request->restaurant_id)->first();
-
-        if(is_null($foodData)){
-            return response()->json(['status'=>'failed','message'=>"Food details not found for selected restaurant"], 400);  
-        }
-
-
-
-        $user_id = $request->user ? $request->user->id : $request['guest_id'];
-        $is_guest = $request->user ? 0 : 1;
-        $model = $request->model;
-
-
-        if ($model == 'Food') {
-            $model = \App\Models\Food::class;
-        } elseif ($model == 'ItemCampaign') {
-            $model = \App\Models\ItemCampaign::class;
-        }
-
-        $item = $request->model === 'Food' ? Food::find($request->item_id) : ItemCampaign::find($request->item_id);
-
-        if($request->order_type=='dine_in' || $request->order_type=='book_a_table'){
-            $cart = Cart::select('restaurant_id')->where('item_type',$model)->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
-            if(!empty($cart) && $cart->restaurant_id!=$request->restaurant_id){
-                return response()->json(['status'=>'failed','message'=>"Not allowed to book multiple restaurants for dine in or book a table"], 400);
+            if ($validator->fails()) {
+                return response()->json(['status'=>'failed','errors' => Helpers::error_processor($validator)], 403);
             }
-        }
 
-        $cartDetails = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get();
-        if ($cartDetails->count() > 0) {
+            $foodData=Food::where('id', $request->item_id)->where('restaurant_id', $request->restaurant_id)->first();
 
-            $firstRecord = $cartDetails->first();
-
-            if($firstRecord->order_type!=$request->order_type){
-                return response()->json(['status'=>'failed','message'=>"Not allowed to change order type and your previously added type is ".str_replace('_', ' ', $firstRecord->order_type)], 400);
+            if(is_null($foodData)){
+                return response()->json(['status'=>'failed','message'=>"Food details not found for selected restaurant"], 400);  
             }
-        }
 
-        $cart = Cart::where('item_id',$request->item_id)->where('item_type',$model)->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
-        if($cart){
-            if($request->quantity>0){
+
+
+            $user_id = $request->user ? $request->user->id : $request['guest_id'];
+            $is_guest = $request->user ? 0 : 1;
+            $model = $request->model;
+
+
+            if ($model == 'Food') {
+                $model = \App\Models\Food::class;
+            } elseif ($model == 'ItemCampaign') {
+                $model = \App\Models\ItemCampaign::class;
+            }
+
+            $item = $request->model === 'Food' ? Food::find($request->item_id) : ItemCampaign::find($request->item_id);
+
+            if($request->order_type=='dine_in' || $request->order_type=='book_a_table'){
+                $cart = Cart::select('restaurant_id')->where('item_type',$model)->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
+                if(!empty($cart) && $cart->restaurant_id!=$request->restaurant_id){
+                    return response()->json(['status'=>'failed','message'=>"Not allowed to book multiple restaurants for dine in or book a table"], 400);
+                }
+            }
+
+            $cartDetails = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get();
+            if ($cartDetails->count() > 0) {
+
+                $firstRecord = $cartDetails->first();
+
+                if($firstRecord->order_type!=$request->order_type){
+                    return response()->json(['status'=>'failed','message'=>"Not allowed to change order type and your previously added type is ".str_replace('_', ' ', $firstRecord->order_type)], 400);
+                }
+            }
+
+            $cart = Cart::where('item_id',$request->item_id)->where('item_type',$model)->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
+            if($cart){
+                if($request->quantity>0){
+                    $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
+                    $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
+                    $cart->item_type = $model;
+                    $cart->price = $request->price;
+                    $cart->quantity = $request->quantity;
+                    $cart->variations =json_encode($request->variations ?? []);
+                    $cart->variation_options =json_encode($request->variation_options ?? []);
+                    $cart->save();
+                } else if($request->quantity==0){
+                    $cart->delete();
+                }
+            }
+
+
+
+            if($item?->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
+                return response()->json(['status'=>'failed','code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
+            }
+            if($request->model === 'Food'){
+                $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$item,quantity: $request->quantity,add_on_qtys:$request->add_on_qtys, variation_options: $request?->variation_options,add_on_ids:$request->add_on_ids );
+
+                if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
+                    return response()->json(['status'=>'failed','code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ], 403);
+                }
+            }
+
+            if(is_null($cart)){
+                $cart = new Cart();
+                $cart->order_type =$request->order_type;
+                $cart->user_id = $user_id;
+                $cart->item_id = $request->item_id;
+                $cart->restaurant_id = $request->restaurant_id;
+                $cart->is_guest = $is_guest;
                 $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
                 $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
                 $cart->item_type = $model;
@@ -118,182 +160,184 @@ class CartController extends Controller
                 $cart->variations =json_encode($request->variations ?? []);
                 $cart->variation_options =json_encode($request->variation_options ?? []);
                 $cart->save();
-            } else if($request->quantity==0){
-                $cart->delete();
+
+                $item->carts()->save($cart);
             }
+            $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
+            ->map(function ($data) {
+                $data->restaurant_name =$data->restaurant?->name;
+                $data->add_on_ids = json_decode($data->add_on_ids,true);
+                $data->add_on_qtys = json_decode($data->add_on_qtys,true);
+                $data->variations = json_decode($data->variations,true);
+                $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
+                $data->add_on_qtys, false, app()->getLocale());
+                unset($data->restaurant);
+                return $data;
+            });
+           return response()->json(['status'=>'success','data'=>$carts], 200);
+
+       } catch(\Extension $e){
+             return response()->json([
+                   'status' => 'failed',
+                   'message' => "Something went wrong. ",
+                   'error'=>$e->getMessage()
+                 ], 500);
         }
-
-
-
-        if($item?->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
-            return response()->json(['status'=>'failed','code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
-        }
-        if($request->model === 'Food'){
-            $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$item,quantity: $request->quantity,add_on_qtys:$request->add_on_qtys, variation_options: $request?->variation_options,add_on_ids:$request->add_on_ids );
-
-            if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
-                return response()->json(['status'=>'failed','code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ], 403);
-            }
-        }
-
-        if(is_null($cart)){
-            $cart = new Cart();
-            $cart->order_type =$request->order_type;
-            $cart->user_id = $user_id;
-            $cart->item_id = $request->item_id;
-            $cart->restaurant_id = $request->restaurant_id;
-            $cart->is_guest = $is_guest;
-            $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
-            $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
-            $cart->item_type = $model;
-            $cart->price = $request->price;
-            $cart->quantity = $request->quantity;
-            $cart->variations =json_encode($request->variations ?? []);
-            $cart->variation_options =json_encode($request->variation_options ?? []);
-            $cart->save();
-
-            $item->carts()->save($cart);
-        }
-        $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
-        ->map(function ($data) {
-            $data->restaurant_name =$data->restaurant?->name;
-            $data->add_on_ids = json_decode($data->add_on_ids,true);
-            $data->add_on_qtys = json_decode($data->add_on_qtys,true);
-            $data->variations = json_decode($data->variations,true);
-            $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
-            $data->add_on_qtys, false, app()->getLocale());
-            unset($data->restaurant);
-            return $data;
-        });
-       return response()->json(['status'=>'success','data'=>$carts], 200);
     }
 
     public function update_cart(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'cart_id' => 'required',
-            'guest_id' => $request->user ? 'nullable' : 'required',
-            'price' => 'required|numeric',
-            'quantity' => 'required|integer|min:1',
-        ]);
+        try{
+            $validator = Validator::make($request->all(), [
+                'cart_id' => 'required',
+                'guest_id' => $request->user ? 'nullable' : 'required',
+                'price' => 'required|numeric',
+                'quantity' => 'required|integer|min:1',
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => Helpers::error_processor($validator)], 403);
-        }
-
-
-        $user_id = $request->user ? $request->user->id : $request['guest_id'];
-        $is_guest = $request->user ? 0 : 1;
-        $cart = Cart::where('id', $request->cart_id)->first();
-  
-        if(is_null($cart)){
-            return response()->json(['status'=>'failed','message'=>"Cart details not found"], 400);  
-        }
-
-        $item = $cart->item_type === 'App\Models\Food' ? Food::find($cart->item_id) : ItemCampaign::find($cart->item_id);
-        if($item->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
-            return response()->json(['status'=>'failed', 'code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
-        }
-
-        if( $cart->item_type === 'App\Models\Food'){
-            $addonAndVariationStock= Helpers::addonAndVariationStockCheck( product:$item, quantity: $request->quantity,add_on_qtys:$request->add_on_qtys, variation_options: $request?->variation_options,add_on_ids:$request->add_on_ids );
-
-            if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
-                return response()->json(['status'=>'failed','code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ], 403);
+            if ($validator->fails()) {
+                return response()->json(['errors' => Helpers::error_processor($validator)], 403);
             }
+
+
+            $user_id = $request->user ? $request->user->id : $request['guest_id'];
+            $is_guest = $request->user ? 0 : 1;
+            $cart = Cart::where('id', $request->cart_id)->first();
+      
+            if(is_null($cart)){
+                return response()->json(['status'=>'failed','message'=>"Cart details not found"], 400);  
+            }
+
+            $item = $cart->item_type === 'App\Models\Food' ? Food::find($cart->item_id) : ItemCampaign::find($cart->item_id);
+            if($item->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
+                return response()->json(['status'=>'failed', 'code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
+            }
+
+            if( $cart->item_type === 'App\Models\Food'){
+                $addonAndVariationStock= Helpers::addonAndVariationStockCheck( product:$item, quantity: $request->quantity,add_on_qtys:$request->add_on_qtys, variation_options: $request?->variation_options,add_on_ids:$request->add_on_ids );
+
+                if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
+                    return response()->json(['status'=>'failed','code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ], 403);
+                }
+            }
+
+
+            $cart->user_id = $user_id;
+            $cart->is_guest = $is_guest;
+            $cart->add_on_ids = $request->add_on_ids?json_encode($request->add_on_ids):$cart->add_on_ids;
+            $cart->add_on_qtys = $request->add_on_qtys?json_encode($request->add_on_qtys):$cart->add_on_qtys;
+            $cart->price = $request->price;
+            $cart->quantity = $request->quantity;
+            $cart->variations = $request->variations?json_encode($request->variations):$cart->variations;
+            $cart->variation_options = json_encode($request?->variation_options ?? []);
+            $cart->save();
+
+            $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
+            ->map(function ($data) {
+                $data->restaurant_name =$data->restaurant?->name;
+                $data->add_on_ids = json_decode($data->add_on_ids,true);
+                $data->add_on_qtys = json_decode($data->add_on_qtys,true);
+                $data->variations = json_decode($data->variations,true);
+                $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
+                $data->add_on_qtys, false, app()->getLocale());
+                unset($data->restaurant);
+                return $data;
+            });
+            return response()->json(['status'=>'success','data'=>$carts], 200);
+
+        } catch(\Extension $e){
+             return response()->json([
+                   'status' => 'failed',
+                   'message' => "Something went wrong. ",
+                   'error'=>$e->getMessage()
+                 ], 500);
         }
-
-
-        $cart->user_id = $user_id;
-        $cart->is_guest = $is_guest;
-        $cart->add_on_ids = $request->add_on_ids?json_encode($request->add_on_ids):$cart->add_on_ids;
-        $cart->add_on_qtys = $request->add_on_qtys?json_encode($request->add_on_qtys):$cart->add_on_qtys;
-        $cart->price = $request->price;
-        $cart->quantity = $request->quantity;
-        $cart->variations = $request->variations?json_encode($request->variations):$cart->variations;
-        $cart->variation_options = json_encode($request?->variation_options ?? []);
-        $cart->save();
-
-        $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
-        ->map(function ($data) {
-            $data->restaurant_name =$data->restaurant?->name;
-            $data->add_on_ids = json_decode($data->add_on_ids,true);
-            $data->add_on_qtys = json_decode($data->add_on_qtys,true);
-            $data->variations = json_decode($data->variations,true);
-            $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
-            $data->add_on_qtys, false, app()->getLocale());
-            unset($data->restaurant);
-            return $data;
-        });
-        return response()->json(['status'=>'success','data'=>$carts], 200);
     }
 
     public function remove_cart_item(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'cart_id' => 'required',
-            'guest_id' => $request->user ? 'nullable' : 'required',
-        ]);
+        try{
+            $validator = Validator::make($request->all(), [
+                'cart_id' => 'required',
+                'guest_id' => $request->user ? 'nullable' : 'required',
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['status'=>'failed','errors' => Helpers::error_processor($validator)], 403);
+            if ($validator->fails()) {
+                return response()->json(['status'=>'failed','errors' => Helpers::error_processor($validator)], 403);
+            }
+
+            $user_id = $request->user ? $request->user->id : $request['guest_id'];
+            $is_guest = $request->user ? 0 : 1;
+
+            $cart = Cart::where('id', $request->cart_id)->first();
+            if(is_null($cart)){
+                return response()->json(['status'=>'failed','message'=>"Cart details not found"], 400);  
+            }
+
+            $cart->delete();
+
+            $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
+            ->map(function ($data) {
+                $data->restaurant_name =$data->restaurant?->name;
+                $data->add_on_ids = json_decode($data->add_on_ids,true);
+                $data->add_on_qtys = json_decode($data->add_on_qtys,true);
+                $data->variations = json_decode($data->variations,true);
+                $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
+                $data->add_on_qtys, false, app()->getLocale());
+                unset($data->restaurant);
+                return $data;
+            });
+            return response()->json(['status'=>'success','data'=>$carts], 200);
+
+        } catch(\Extension $e){
+             return response()->json([
+                   'status' => 'failed',
+                   'message' => "Something went wrong. ",
+                   'error'=>$e->getMessage()
+                 ], 500);
         }
-
-        $user_id = $request->user ? $request->user->id : $request['guest_id'];
-        $is_guest = $request->user ? 0 : 1;
-
-        $cart = Cart::where('id', $request->cart_id)->first();
-        if(is_null($cart)){
-            return response()->json(['status'=>'failed','message'=>"Cart details not found"], 400);  
-        }
-
-        $cart->delete();
-
-        $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
-        ->map(function ($data) {
-            $data->restaurant_name =$data->restaurant?->name;
-            $data->add_on_ids = json_decode($data->add_on_ids,true);
-            $data->add_on_qtys = json_decode($data->add_on_qtys,true);
-            $data->variations = json_decode($data->variations,true);
-            $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
-            $data->add_on_qtys, false, app()->getLocale());
-            unset($data->restaurant);
-            return $data;
-        });
-        return response()->json(['status'=>'success','data'=>$carts], 200);
     }
 
     public function remove_cart(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'guest_id' => $request->user ? 'nullable' : 'required',
-        ]);
+        try{
+            $validator = Validator::make($request->all(), [
+                'guest_id' => $request->user ? 'nullable' : 'required',
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => Helpers::error_processor($validator)], 403);
+            if ($validator->fails()) {
+                return response()->json(['errors' => Helpers::error_processor($validator)], 403);
+            }
+
+            $user_id = $request->user ? $request->user->id : $request['guest_id'];
+            $is_guest = $request->user ? 0 : 1;
+
+            $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get();
+
+            foreach($carts as $cart){
+                $cart->delete();
+            }
+
+            $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
+            ->map(function ($data) {
+                $data->restaurant_name =$data->restaurant?->name;
+                $data->add_on_ids = json_decode($data->add_on_ids,true);
+                $data->add_on_qtys = json_decode($data->add_on_qtys,true);
+                $data->variations = json_decode($data->variations,true);
+                $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
+                $data->add_on_qtys, false, app()->getLocale());
+                unset($data->restaurant);
+                return $data;
+            });
+           return response()->json(['status'=>'success','data'=>$carts], 200);
+
+       } catch(\Extension $e){
+             return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getMessage()
+             ], 500);
         }
-
-        $user_id = $request->user ? $request->user->id : $request['guest_id'];
-        $is_guest = $request->user ? 0 : 1;
-
-        $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get();
-
-        foreach($carts as $cart){
-            $cart->delete();
-        }
-
-        $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
-        ->map(function ($data) {
-            $data->restaurant_name =$data->restaurant?->name;
-            $data->add_on_ids = json_decode($data->add_on_ids,true);
-            $data->add_on_qtys = json_decode($data->add_on_qtys,true);
-            $data->variations = json_decode($data->variations,true);
-            $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
-            $data->add_on_qtys, false, app()->getLocale());
-            unset($data->restaurant);
-            return $data;
-        });
-       return response()->json(['status'=>'success','data'=>$carts], 200);
     }
 
     public function add_to_cart_multiple(Request $request)
