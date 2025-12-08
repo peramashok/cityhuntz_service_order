@@ -44,6 +44,17 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
 
             Route::get('all-reserved-orders', 'getAllReservedOrdersList');
         });
+
+
+        Route::group(['prefix' => 'message'], function () {
+            Route::controller(VendorConversationController::class)->group(function () {
+                Route::get('list', 'conversations');
+                Route::get('search-list', 'search_conversations');
+                Route::get('details', 'messages');
+                Route::post('send', 'messages_store');
+            });
+        });
+
     });
 
     Route::group(['prefix' => 'delivery-man', 'middleware' => ['auth:api']], function () {
@@ -85,6 +96,41 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
             Route::delete('remove-item', 'remove_cart_item');
             Route::delete('remove', 'remove_cart');
             // Route::post('add-multiple', 'add_to_cart_multiple');
+        });
+    });
+
+
+     // Delivery man app
+
+
+     Route::group(['prefix' => 'delivery-man'], function () {
+        Route::group(['prefix' => 'reviews','middleware'=>['auth:api']], function () {
+            Route::get('/{delivery_man_id}', 'DeliveryManReviewController@get_reviews');
+            Route::get('rating/{delivery_man_id}', 'DeliveryManReviewController@get_rating');
+            Route::post('/submit', 'DeliveryManReviewController@submit_review');
+        });
+        Route::group(['middleware'=>['auth:api']], function () {
+            Route::controller(DeliverymanOrdersController::class)->group(function () {
+                Route::get('current-orders', 'get_current_orders');
+                Route::get('latest-orders', 'get_latest_orders');
+                Route::get('all-orders', 'get_all_orders');
+                Route::get('order-delivery-history', 'get_order_history');
+                Route::post('accept-order', 'accept_order');
+                Route::post('update-order-status', 'update_order_status');
+                Route::post('update-payment-status', 'order_payment_status_update');
+                Route::get('order-details', 'get_order_details');
+                Route::get('order', 'get_order');
+            });
+
+             // Chatting
+            Route::group(['prefix' => 'message'], function () {
+                Route::controller(ConversationController::class)->group(function () {
+                    Route::get('list', 'dm_conversations');
+                    Route::get('search-list', 'dm_search_conversations');
+                    Route::get('details', 'dm_messages');
+                    Route::post('send', 'dm_messages_store');
+                });
+            });
         });
     });
 });
