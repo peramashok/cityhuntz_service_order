@@ -49,13 +49,13 @@ class VendorOrdersController extends Controller
                 }
                 else
                 {
-                    $query->whereIn('order_status', ['confirmed', 'processing', 'handover','picked_up','canceled','failed' ])
+                    $query->whereIn('order_status', ['confirmed','pending', 'processing', 'handover','picked_up','canceled','failed' ])
                     ->hasSubscriptionInStatus(['accepted','pending','confirmed', 'processing', 'handover','picked_up','canceled','failed'])
                     ->orWhere(function($query){
                         $query->where('payment_status','paid')->where('order_status', 'accepted');
                     })
                     ->orWhere(function($query){
-                        $query->where('order_status','pending')->whereIn('order_type', ['take_away' , 'dine_in']);
+                        $query->where('order_status','pending')->whereIn('order_type', ['take_away' , 'dine_in', 'book_a_table']);
                     });
                 }
             })
