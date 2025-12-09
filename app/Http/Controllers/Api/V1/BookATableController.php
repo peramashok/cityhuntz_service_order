@@ -150,6 +150,47 @@ class BookATableController extends Controller
                 ], 403);
             }
 
+           
+             
+            $fromTime = $request->from_time;        // 13:30:00
+            $toTime   = $request->to_time;          // 15:30:00
+            $scheduledDate = Carbon::parse($request->scheduled_at)->toDateString();
+
+            $selectedTableNos = explode(',', $request->table_nos); // "1,2" → [1,2]
+
+            $tableslist = RestaurantTable::whereIn('restaurant_tables.id', $selectedTableNos)
+                ->leftJoin('reserved_tables', function ($join) use ($fromTime, $toTime, $scheduledDate) {
+                    $join->on(DB::raw('FIND_IN_SET(restaurant_tables.id, reserved_tables.table_nos)'), '>', DB::raw('0'))
+                         ->whereDate('reserved_tables.scheduled_at', $scheduledDate)
+                         ->where('reserved_tables.from_time', '<', $toTime)
+                         ->where('reserved_tables.to_time', '>', $fromTime);
+                })
+                ->groupBy(
+                    'restaurant_tables.id',
+                    'restaurant_tables.table_name',
+                    'restaurant_tables.capacity'
+                )
+                ->selectRaw("
+                    restaurant_tables.id,
+                    restaurant_tables.table_name,
+                    restaurant_tables.capacity,
+                    CASE WHEN COUNT(reserved_tables.id) > 0 THEN 1 ELSE 0 END AS is_booked
+                ")
+                ->get();
+
+                if(count($tableslist)>0){
+                    foreach($tableslist as $row){
+                        if (in_array($row->id, $selectedTableNos) && $row->is_booked=1) {
+                             return response()->json([
+                                'status'       => 'failed',
+                                'message'      => "table no : ".$row->table_name. " is booked on ".$request->schedule_at." . So please choose another table",
+                            ], 400);
+                        }
+                    }
+                }
+
+
+
             /* =======================
              * BOOK TABLE ✅
              * ======================= */
