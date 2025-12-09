@@ -45,6 +45,13 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
             Route::get('all-reserved-orders', 'getAllReservedOrdersList');
         });
 
+        Route::prefix('book_a_table')->controller(BookATableController::class)->group(function () {
+             Route::get('current_bookings', 'getAllVendorCurrrentBookings');
+             Route::post('closed_bookings', 'getAllVendorClosedBookings');
+             Route::post('all_bookings', 'getAllVendorBookings');
+             Route::get('get_booked_details/{id}', 'getVendorBookedTableDetails');
+             Route::post('update_status', 'updateBookingStatus');
+        });
 
         Route::group(['prefix' => 'message'], function () {
             Route::controller(VendorConversationController::class)->group(function () {
@@ -91,7 +98,6 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
              Route::get('book_now', 'book_now');
              Route::get('get_booked_details/{id}', 'getBookedTableDetails');
              Route::get('my_bookings', 'getAllCustomerBookings');
-            
         });
 
         Route::prefix('cart')->controller(CartController::class)->group(function () {

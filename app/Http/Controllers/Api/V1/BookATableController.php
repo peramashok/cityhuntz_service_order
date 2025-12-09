@@ -150,6 +150,47 @@ class BookATableController extends Controller
                 ], 403);
             }
 
+           
+             
+            $fromTime = $request->from_time;        // 13:30:00
+            $toTime   = $request->to_time;          // 15:30:00
+            $scheduledDate = Carbon::parse($request->scheduled_at)->toDateString();
+
+            $selectedTableNos = explode(',', $request->table_nos); // "1,2" → [1,2]
+
+            $tableslist = RestaurantTable::whereIn('restaurant_tables.id', $selectedTableNos)
+                ->leftJoin('reserved_tables', function ($join) use ($fromTime, $toTime, $scheduledDate) {
+                    $join->on(DB::raw('FIND_IN_SET(restaurant_tables.id, reserved_tables.table_nos)'), '>', DB::raw('0'))
+                         ->whereDate('reserved_tables.scheduled_at', $scheduledDate)
+                         ->where('reserved_tables.from_time', '<', $toTime)
+                         ->where('reserved_tables.to_time', '>', $fromTime);
+                })
+                ->groupBy(
+                    'restaurant_tables.id',
+                    'restaurant_tables.table_name',
+                    'restaurant_tables.capacity'
+                )
+                ->selectRaw("
+                    restaurant_tables.id,
+                    restaurant_tables.table_name,
+                    restaurant_tables.capacity,
+                    CASE WHEN COUNT(reserved_tables.id) > 0 THEN 1 ELSE 0 END AS is_booked
+                ")
+                ->get();
+
+                if(count($tableslist)>0){
+                    foreach($tableslist as $row){
+                        if (in_array($row->id, $selectedTableNos) && $row->is_booked=1) {
+                             return response()->json([
+                                'status'       => 'failed',
+                                'message'      => "table no : ".$row->table_name. " is booked on ".$request->schedule_at." . So please choose another table",
+                            ], 400);
+                        }
+                    }
+                }
+
+
+
             /* =======================
              * BOOK TABLE ✅
              * ======================= */
@@ -258,6 +299,292 @@ class BookATableController extends Controller
                'message' => "Something went wrong. ",
                 'error'=>$e->getLine()." ".$e->getMessage()
              ], 500);
+        }
+    }
+
+
+    /**
+     * get all vendor current orders
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Response
+     */
+    public function getAllVendorCurrrentBookings(Request $request)
+    {
+         try{
+            $validator = Validator::make($request->all(), [
+               'restaurant_id' => [
+                    'required',
+                    Rule::exists('restaurants', 'id')->whereNull('deleted_at')
+                ]
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
+            }
+           
+            $reservations = ReservedTable::with('customer:id,f_name,l_name,email,phone')
+                ->where('restaurant_id', $request->restaurant_id)
+                ->whereIn('order_status', ['pending','confirmed','dine_in','cancelled'])
+                ->orderBy('from_time', 'DESC')
+                ->get()
+                ->map(function ($item) {
+                    // Convert CSV table_nos to array
+                    $tableIds = explode(',', $item->table_nos);
+
+                    // Fetch all tables for this reservation
+                    $item->tables = RestaurantTable::whereIn('id', $tableIds)->get();
+
+                    return $item; // make sure to return the modified item
+                });
+             return response()->json([
+               'status' => 'success',
+               'data' => ['tables_list'=>$reservations] 
+             ], 200);
+
+         } catch(\Exception $e){
+              return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+                'error'=>$e->getLine()." ".$e->getMessage()
+             ], 500);
+        }
+    }
+
+
+     /**
+     * get all vendor current orders
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Response
+     */
+    public function getAllVendorBookings(Request $request)
+    {
+         try{
+            $validator = Validator::make($request->all(), [
+               'restaurant_id' => [
+                    'required',
+                    Rule::exists('restaurants', 'id')->whereNull('deleted_at')
+                ],
+                'limit'=>'required|integer',
+                'offset'=>'required|integer'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
+            }
+           
+           $reservations = ReservedTable::with('customer:id,f_name,l_name,email,phone,image')
+                ->where('restaurant_id', $request->restaurant_id)
+                ->orderBy('id', 'desc')
+                ->paginate($request['limit'], ['*'], 'page', $request['offset']);
+
+           $reservationsItems = collect($reservations->items())->map(function ($item) {
+                $tableIds = array_filter(explode(',', $item->table_nos));
+                $item->tables = RestaurantTable::whereIn('id', $tableIds)->get();
+                return $item;
+            });
+
+            $data = [
+                'total_size' => $reservations->total(),
+                'limit' => $request['limit'],
+                'offset' => $request['offset'],
+                'bookings' => $reservationsItems
+            ];
+
+            return response()->json([
+               'status' => 'success',
+               'data' => $data
+            ], 200);
+
+         } catch(\Exception $e){
+              return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+                'error'=>$e->getLine()." ".$e->getMessage()
+             ], 500);
+        }
+    }
+
+     /**
+     * get all vendor closed bookings
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Response
+     */
+    public function getAllVendorClosedBookings(Request $request)
+    {
+         try{
+            $validator = Validator::make($request->all(), [
+               'restaurant_id' => [
+                    'required',
+                    Rule::exists('restaurants', 'id')->whereNull('deleted_at')
+                ]
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
+            }
+           
+           $reservations = ReservedTable::with('customer:id,f_name,l_name,email,phone,image')
+                ->where('restaurant_id', $request->restaurant_id)
+                ->where('order_status', 'closed')
+                ->orderBy('id', 'desc')
+                ->paginate($request['limit'], ['*'], 'page', $request['offset']);
+
+           $reservationsItems = collect($reservations->items())->map(function ($item) {
+                $tableIds = array_filter(explode(',', $item->table_nos));
+                $item->tables = RestaurantTable::whereIn('id', $tableIds)->get();
+                return $item;
+            });
+
+            $data = [
+                'total_size' => $reservations->total(),
+                'limit' => $request['limit'],
+                'offset' => $request['offset'],
+                'bookings' => $reservationsItems
+            ];
+
+            return response()->json([
+               'status' => 'success',
+               'data' => $data
+            ], 200);
+
+         } catch(\Exception $e){
+              return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+                'error'=>$e->getLine()." ".$e->getMessage()
+             ], 500);
+        }
+    }
+
+    /**
+     * get detailed booking details
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Response
+     */
+    public function getVendorBookedTableDetails($id, Request $request)
+    {
+         try{
+            $validator = Validator::make($request->all(), [
+               'restaurant_id' => [
+                    'required',
+                    Rule::exists('restaurants', 'id')->whereNull('deleted_at')
+                ]
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
+            }
+
+            $reservation = ReservedTable::with('customer:id,f_name,l_name,email,phone,image')->where('id', $id)->first();
+
+            if(is_null($reservation)){
+                 return response()->json([
+                   'status' => 'failed',
+                   'message'=>'Booking details not found'
+                 ], 400);
+            }
+            if($reservation->restaurant_id!=$request->restaurant_id){
+                 return response()->json([
+                   'status' => 'failed',
+                   'message'=>"You can’t view other restaurant's booking details"
+                 ], 400);
+            }
+
+            $tableIds = explode(',', $reservation->table_nos);
+            $tables = RestaurantTable::whereIn('id', $tableIds)->get();
+
+             return response()->json([
+               'status' => 'success',
+               'data' => ['reservation'=>$reservation, 'tables_list'=>$tables] 
+             ], 200);
+
+         } catch(\Exception $e){
+              return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+                'error'=>$e->getLine()." ".$e->getMessage()
+             ], 500);
+        }
+    }
+
+
+    /**
+     * update bookings status
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Resp
+    */
+    public function updateBookingStatus(Request $request)
+    {
+        try{
+            $validator = Validator::make($request->all(), [
+                'restaurant_id' => [
+                    'required',
+                    Rule::exists('restaurants', 'id')->whereNull('deleted_at')
+                ],
+                'booking_id' => 'required|exists:reserved_tables,id',
+                'reason' =>'required_if:status,cancelled',
+                'status' => 'required|in:confirmed,cancelled,closed,dine_in',
+                //'order_proof' =>'nullable|array|max:5',
+            ]);
+            $request->otp="123456";
+            // $validator->sometimes('otp', 'required', function ($request) {
+            //     return (Config::get('order_delivery_verification')==1 && $request['status']=='delivered');
+            // });
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => Helpers::error_processor($validator)], 403);
+            }
+
+            $vendor = auth()->user();
+            $order = ReservedTable::with('restaurant')->where('restaurant_id', $request->restaurant_id)->whereHas('restaurant.vendor', function($query) use($vendor){
+                $query->where('id', $vendor->id);
+            })
+            ->first();
+
+            if(!$order)
+            {
+                return response()->json([
+                    'status'=>'failed',
+                    'code' => 'booking', 
+                    'message' => 'booking details not found'
+                ], 403);
+            }
+
+
+            $restaurant=$order->restaurant;
+            $data =0;
+            if ($restaurant?->restaurant_model == 'subscription'){
+            // $data =1;
+            }
+
+            // if($request['status'] =="confirmed" && !$data)
+            // {
+
+
+            //     return response()->json([
+            //         'status'=>'failed',
+            //         'code' => 'order-confirmation-model', 
+            //         'status'=>$request['status'] =="confirmed".!$data,
+            //         'message' => translate('messages.order_confirmation_warning')
+            //     ], 403);
+            // }
+
+            $order->order_status = $request['status'];
+            if($request->status=='cancelled'){
+                $order->cancelled_reason = $request['reason'];
+            }
+            $order[$request['status']] = now();
+            $order->save();
+           // Helpers::send_order_notification($order);
+
+            return response()->json(['status'=>'success','message' => 'You have successfully updated booking status into '. $request->status], 200);
+
+        } catch(\Extension $e){
+             return response()->json([
+                   'status' => 'failed',
+                   'message' => "Something went wrong. ",
+                   'error'=>$e->getMessage()
+                 ], 500);
         }
     }
 }
