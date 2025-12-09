@@ -310,15 +310,15 @@ class VendorOrdersController extends Controller
              $data =1;
             }
 
-            if($request['status'] =="confirmed" && !$data && config('order_confirmation_model') == 'deliveryman' && !in_array($order['order_type'],['dine_in','take_away']) && $order->subscription_id == null)
-            {
-                return response()->json([
-                    'status'=>'failed',
-                    'errors' => [
-                        ['code' => 'order-confirmation-model', 'message' => translate('messages.order_confirmation_warning')]
-                    ]
-                ], 403);
-            }
+            // if($request['status'] =="confirmed" && !$data && config('order_confirmation_model') == 'deliveryman' && !in_array($order['order_type'],['dine_in','take_away']) && $order->subscription_id == null)
+            // {
+            //     return response()->json([
+            //         'status'=>'failed',
+            //         'errors' => [
+            //             ['code' => 'order-confirmation-model', 'message' => translate('messages.order_confirmation_warning')]
+            //         ]
+            //     ], 403);
+            // }
 
             if($order->picked_up != null)
             {
