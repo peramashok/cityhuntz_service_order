@@ -16,8 +16,14 @@ class ReservedTable extends Model
             ->whereRaw('FIND_IN_SET(restaurant_tables.id, reserved_tables.table_nos)');
     }
 
-       public function restaurant()
+    public function restaurant()
     {
         return $this->belongsTo(Restaurant::class, 'restaurant_id');
+    }
+
+
+    public function customer()
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 }
