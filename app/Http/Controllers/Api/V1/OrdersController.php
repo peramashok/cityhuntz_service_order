@@ -503,7 +503,7 @@ class OrdersController extends Controller
         // if(($request['order_type'] != 'take_away' || $request['order_type'] != 'dine_in') && !$restaurant->free_delivery &&  !isset($delivery_charge) && ($restaurant->restaurant_model == 'subscription' && isset($restaurant->restaurant_sub) && $restaurant->restaurant_sub->self_delivery == 1  || $restaurant->restaurant_model == 'commission' &&  $restaurant->self_delivery_system == 1 )){
 
         if (
-            !in_array($request['order_type'], ['take_away', 'dine_in', 'book_a_table'])
+            !in_array($request['order_type'], ['take_away', 'dine_in'])
             && !$restaurant->free_delivery
             && !isset($delivery_charge)
             && (
