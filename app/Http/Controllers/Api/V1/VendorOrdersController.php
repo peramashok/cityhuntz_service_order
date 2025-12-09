@@ -37,6 +37,8 @@ class VendorOrdersController extends Controller
             if (($restaurant?->restaurant_model == 'subscription' && $restaurant?->restaurant_sub?->self_delivery == 1)  || ($restaurant?->restaurant_model == 'commission' &&  $restaurant?->self_delivery_system == 1) ){
              $data =1;
             }
+
+
             $orders = Order::whereHas('restaurant.vendor', function($query) use($vendor){
                 $query->where('id', $vendor->id);
             })
@@ -55,7 +57,7 @@ class VendorOrdersController extends Controller
                         $query->where('payment_status','paid')->where('order_status', 'accepted');
                     })
                     ->orWhere(function($query){
-                        $query->where('order_status','pending')->whereIn('order_type', ['take_away' , 'dine_in', 'book_a_table']);
+                        $query->where('order_status','pending')->whereIn('order_type', ['take_away' , 'dine_in']);
                     });
                 }
             })
@@ -63,6 +65,10 @@ class VendorOrdersController extends Controller
             ->Notpos()
             ->orderBy('schedule_at', 'desc')
             ->get();
+
+
+
+            
             $orders= Helpers::order_data_formatting($orders, true);
             return response()->json($orders, 200);
         } catch(\Extension $e){

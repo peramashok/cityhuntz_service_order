@@ -87,7 +87,12 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
             // Route::put('offline-payment-update', 'OrderController@update_offline_payment_info');
         });
 
-
+         Route::prefix('book_a_table')->controller(BookATableController::class)->group(function () {
+             Route::get('book_now', 'book_now');
+             Route::get('get_booked_details/{id}', 'getBookedTableDetails');
+             Route::get('my_bookings', 'getAllCustomerBookings');
+            
+        });
 
         Route::prefix('cart')->controller(CartController::class)->group(function () {
             Route::get('list', 'get_carts');

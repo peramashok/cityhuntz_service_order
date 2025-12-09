@@ -54,7 +54,7 @@ class CartController extends Controller
     {
         try{
             $validator = Validator::make($request->all(), [
-                'order_type' => 'required|in:take_away,dine_in,delivery,book_a_table',
+                'order_type' => 'required|in:take_away,dine_in,delivery',
                 'guest_id' => $request->user ? 'nullable' : 'required',
                 'item_id' => [
                   'required',
