@@ -33,6 +33,8 @@ use App\Models\Review;
 use App\Models\SubscriptionSchedule;
 use App\Models\DeliveryMan;
 use App\Models\Category;
+use Carbon\Carbon;
+
 class OrdersController extends Controller
 {
     /**
@@ -50,25 +52,95 @@ class OrdersController extends Controller
             if (($restaurant?->restaurant_model == 'subscription' && $restaurant?->restaurant_sub?->self_delivery == 1)  || ($restaurant?->restaurant_model == 'commission' &&  $restaurant?->self_delivery_system == 1) ){
              $data =1;
             }
-            $orders = Order::whereHas('restaurant.vendor', function($query) use($vendor){
+            // $orders = Order::whereHas('restaurant.vendor', function($query) use($vendor){
+            //     $query->where('id', $vendor->id);
+            // })
+            // ->with('customer')
+            // ->where(function($query)use($data){
+            //     if(config('order_confirmation_model') == 'restaurant' || $data)
+            //     {
+            //         $query->whereIn('order_status', ['accepted','pending','confirmed', 'processing', 'handover','picked_up','canceled','failed' ])
+            //         ->hasSubscriptionInStatus(['accepted','pending','confirmed', 'processing', 'handover','picked_up','canceled','failed' ]);
+            //     }
+            //     else
+            //     {
+            //         $query->whereIn('order_status', ['confirmed', 'processing', 'handover','picked_up','canceled','failed' ])
+            //         ->hasSubscriptionInStatus(['accepted','pending','confirmed', 'processing', 'handover','picked_up','canceled','failed'])
+            //         ->orWhere(function($query){
+            //             $query->where('payment_status','paid')->where('order_status', 'accepted');
+            //         })
+            //         ->orWhere(function($query){
+            //             $query->where('order_status','pending')->whereIn('order_type', ['delivery', 'book_a_table', 'take_away' , 'dine_in']);
+            //         });
+            //     }
+            // })
+            // ->NotDigitalOrder()
+            // ->Notpos()
+            // ->orderBy('schedule_at', 'desc')
+            // ->get();
+
+
+            $orders = Order::whereHas('restaurant.vendor', function ($query) use ($vendor) {
                 $query->where('id', $vendor->id);
             })
             ->with('customer')
-            ->where(function($query)use($data){
-                if(config('order_confirmation_model') == 'restaurant' || $data)
-                {
-                    $query->whereIn('order_status', ['accepted','pending','confirmed', 'processing', 'handover','picked_up','canceled','failed' ])
-                    ->hasSubscriptionInStatus(['accepted','pending','confirmed', 'processing', 'handover','picked_up','canceled','failed' ]);
-                }
-                else
-                {
-                    $query->whereIn('order_status', ['confirmed', 'processing', 'handover','picked_up','canceled','failed' ])
-                    ->hasSubscriptionInStatus(['accepted','pending','confirmed', 'processing', 'handover','picked_up','canceled','failed'])
-                    ->orWhere(function($query){
-                        $query->where('payment_status','paid')->where('order_status', 'accepted');
+            ->where(function ($query) use ($data) {
+
+                // ✅ MAIN CONDITIONS
+                if (config('order_confirmation_model') == 'restaurant' || $data) {
+
+                    $query->where(function ($q) {
+                        $q->whereIn('order_status', [
+                            'accepted',
+                            'pending',
+                            'confirmed',
+                            'processing',
+                            'handover',
+                            'picked_up',
+                            'canceled',
+                            'failed'
+                        ]);
+                    });
+
+                } else {
+
+                    // ✅ Orders that REQUIRE subscription
+                    $query->where(function ($q) {
+                        $q->whereIn('order_status', [
+                            'confirmed',
+                            'processing',
+                            'handover',
+                            'picked_up',
+                            'canceled',
+                            'failed'
+                        ])
+                        ->hasSubscriptionInStatus([
+                            'accepted',
+                            'pending',
+                            'confirmed',
+                            'processing',
+                            'handover',
+                            'picked_up',
+                            'canceled',
+                            'failed'
+                        ]);
                     })
-                    ->orWhere(function($query){
-                        $query->where('order_status','pending')->whereIn('order_type', ['take_away' , 'dine_in']);
+
+                    // ✅ Accepted & Paid (no subscription block)
+                    ->orWhere(function ($q) {
+                        $q->where('order_status', 'accepted')
+                          ->where('payment_status', 'paid');
+                    })
+
+                    // ✅ ✅ Pending orders (THIS WAS THE ISSUE)
+                    ->orWhere(function ($q) {
+                        $q->where('order_status', 'pending')
+                          ->whereIn('order_type', [
+                              'delivery',
+                              'book_a_table',
+                              'take_away',
+                              'dine_in'
+                          ]);
                     });
                 }
             })
@@ -76,7 +148,8 @@ class OrdersController extends Controller
             ->Notpos()
             ->orderBy('schedule_at', 'desc')
             ->get();
-            $orders= Helpers::order_data_formatting($orders, true);
+
+            //$orders= Helpers::order_data_formatting($orders, true);
             return response()->json($orders, 200);
         } catch(\Extension $e){
 
@@ -187,13 +260,13 @@ class OrdersController extends Controller
         return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.you_can_not_cancel_after_confirm')], 403);
     }
 
-  public function place_order(Request $request)
+    public function place_order(Request $request)
     {
         try{
-            $validator = Validator::make($request->all(), [
+              $validator = Validator::make($request->all(), [
                 'order_amount' => 'required',
-                'payment_method'=>'required|in:cash_on_delivery,digital_payment,wallet,offline_payment',
-                'order_type' => 'required|in:take_away,dine_in,delivery,book_a_table',
+                'payment_method' => 'required|in:cash_on_delivery,digital_payment,wallet,offline_payment',
+                'order_type' => 'required|in:take_away,dine_in,delivery',
                 'restaurant_id' => 'required|array|min:1',
                 'restaurant_id.*' => 'integer|exists:restaurants,id',
                 'distance' => 'required_if:order_type,delivery',
@@ -203,7 +276,7 @@ class OrdersController extends Controller
                 'dm_tips' => 'nullable|numeric',
                 'guest_id' => $request->user ? 'nullable' : 'required',
                 'contact_person_name' => $request->user ? 'nullable' : 'required',
-                'contact_person_number' => $request->user ? 'nullable' : 'required',
+                'contact_person_number' => $request->user ? 'nullable' : 'required'
             ]);
 
             if ($validator->fails()) {
@@ -437,9 +510,9 @@ class OrdersController extends Controller
                 ($restaurant->restaurant_model == 'subscription'
                     && isset($restaurant->restaurant_sub)
                     && $restaurant->self_delivery_system == 1)
-                ||
-                ($restaurant->restaurant_model == 'commission'
-                    && $restaurant->self_delivery_system == 1)
+                // ||
+                // ($restaurant->restaurant_model == 'commission'
+                //     && $restaurant->self_delivery_system == 1)
             )
         ) {
                 $per_km_shipping_charge = $restaurant->per_km_shipping_charge;
@@ -545,12 +618,7 @@ class OrdersController extends Controller
         $order->order_note = $request['order_note'];
         $order->order_type = $request['order_type'];
 
-        if($request->order_type=='book_a_table'){
-            $order->tables_nos = $request->tables_nos;
-            $order->from_time = $request->from_time;
-            $order->to_time = $request->to_time;
-            $order->no_of_persons = $request->no_of_persons ?? 0;
-        }
+
         $order->restaurant_id = $restaurantId;
         $order->delivery_charge = round($delivery_charge, config('round_up_to_digit'))??0;
         $order->original_delivery_charge = round($original_delivery_charge, config('round_up_to_digit'));
@@ -1073,6 +1141,7 @@ class OrdersController extends Controller
                 $query->where('is_guest' , 0);
             })
             ->where('id',$request->order_id)->first();
+            
             $details = $order?->details;
 
             if ($details != null && $details->count() > 0) {

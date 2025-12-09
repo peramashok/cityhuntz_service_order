@@ -6488,4 +6488,5 @@
   'Item_already_exists' => 'Item already exists',
   'order_canceled_successfully_and_for_refund_amount_contact_admin' => 'Order canceled successfully and for refund amount contact admin',
   'order_confirmation_warning' => 'Order confirmation warning',
+  'schedule_order_not_available' => 'Schedule order not available',
 );
