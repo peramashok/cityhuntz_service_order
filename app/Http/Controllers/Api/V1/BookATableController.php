@@ -180,7 +180,8 @@ class BookATableController extends Controller
 
                 if(count($tableslist)>0){
                     foreach($tableslist as $row){
-                        if (in_array($row->id, $selectedTableNos) && $row->is_booked=1) {
+                        if (in_array($row->id, $selectedTableNos) && $row->is_booked==1) {
+
                              return response()->json([
                                 'status'       => 'failed',
                                 'message'      => "table no : ".$row->table_name. " is booked on ".$request->schedule_at." . So please choose another table",
@@ -189,7 +190,7 @@ class BookATableController extends Controller
                     }
                 }
 
-
+ 
 
             /* =======================
              * BOOK TABLE ✅
