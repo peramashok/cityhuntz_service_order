@@ -67,6 +67,8 @@ class BookATableController extends Controller
                 ],
             ]);
 
+
+            
             if ($validator->fails()) {
                 return response()->json([
                     'status' => 'failed',
@@ -152,32 +154,76 @@ class BookATableController extends Controller
 
            
              
-            $fromTime = $request->from_time;        // 13:30:00
-            $toTime   = $request->to_time;          // 15:30:00
-            $scheduledDate = Carbon::parse($request->scheduled_at)->toDateString();
+            $fromTime = $request->from_time;
+            $toTime   = $request->to_time;
+            $scheduledDate = Carbon::parse($request->schedule_at)->toDateString();
 
-            $selectedTableNos = explode(',', $request->table_nos); // "1,2" → [1,2]
+            $selectedTableNos = explode(',', $request->table_nos); // "6,7" → [6,7]
 
-            $tableslist = RestaurantTable::whereIn('restaurant_tables.id', $selectedTableNos)
+            // $tableslist = RestaurantTable::whereIn('restaurant_tables.id', $selectedTableNos)
+            //     ->leftJoin('reserved_tables', function ($join) use ($fromTime, $toTime, $scheduledDate) {
+            //         $join->on(DB::raw('FIND_IN_SET(restaurant_tables.id, reserved_tables.table_nos)'), '>', DB::raw('0'))
+            //             ->whereDate('reserved_tables.scheduled_at', $scheduledDate)
+            //             ->where(function ($q) use ($fromTime, $toTime) {
+            //                 $q->where('reserved_tables.from_time', '<', $toTime)
+            //                   ->where('reserved_tables.to_time', '>', $fromTime);
+            //             });
+            //     })
+            //     ->select(
+            //         'restaurant_tables.id',
+            //         'restaurant_tables.table_name',
+            //         'restaurant_tables.capacity',
+            //         DB::raw('IF(COUNT(reserved_tables.id) > 0, 1, 0) as is_booked')
+            //     )
+            //     ->groupBy(
+            //         'restaurant_tables.id',
+            //         'restaurant_tables.table_name',
+            //         'restaurant_tables.capacity'
+            //     )
+            //     ->get();
+
+    
+            $tableCounts=RestaurantTable::whereIn('restaurant_tables.id', $selectedTableNos)->where('restaurant_id', $request->restaurant_id)->count();
+
+            if($tableCounts<count($selectedTableNos)){
+                 return response()->json([
+                    'status' => 'failed',
+                    'message'=>"Selected table of Restaurant not belongs to selected restaurant",
+                ], 400);
+            }
+
+             $tableslist = RestaurantTable::whereIn('restaurant_tables.id', $selectedTableNos)
                 ->leftJoin('reserved_tables', function ($join) use ($fromTime, $toTime, $scheduledDate) {
+
                     $join->on(DB::raw('FIND_IN_SET(restaurant_tables.id, reserved_tables.table_nos)'), '>', DB::raw('0'))
-                         ->whereDate('reserved_tables.scheduled_at', $scheduledDate)
-                         ->where('reserved_tables.from_time', '<', $toTime)
-                         ->where('reserved_tables.to_time', '>', $fromTime);
+
+                        // ✅ active reservations only
+                        ->whereNotIn('reserved_tables.order_status', ['cancelled', 'closed'])
+
+                        // ✅ same date
+                        ->whereDate('reserved_tables.scheduled_at', $scheduledDate)
+
+                        // ✅ time overlap logic
+                        ->where(function ($q) use ($fromTime, $toTime) {
+                            $q->where('reserved_tables.from_time', '<', $toTime)
+                              ->where('reserved_tables.to_time', '>', $fromTime);
+                        });
                 })
+                ->select(
+                    'restaurant_tables.id',
+                    'restaurant_tables.table_name',
+                    'restaurant_tables.capacity',
+
+                    // ✅ if NO active overlapping reservation → 0
+                    DB::raw('IF(COUNT(reserved_tables.id) > 0, 1, 0) AS is_booked')
+                )
                 ->groupBy(
                     'restaurant_tables.id',
                     'restaurant_tables.table_name',
                     'restaurant_tables.capacity'
                 )
-                ->selectRaw("
-                    restaurant_tables.id,
-                    restaurant_tables.table_name,
-                    restaurant_tables.capacity,
-                    CASE WHEN COUNT(reserved_tables.id) > 0 THEN 1 ELSE 0 END AS is_booked
-                ")
                 ->get();
-
+     
                 if(count($tableslist)>0){
                     foreach($tableslist as $row){
                         if (in_array($row->id, $selectedTableNos) && $row->is_booked==1) {
@@ -190,7 +236,7 @@ class BookATableController extends Controller
                     }
                 }
 
- 
+
 
             /* =======================
              * BOOK TABLE ✅
