@@ -1452,4 +1452,42 @@ class Helpers
         return $data;
     }
 
+
+    public static function get_business_data($name)
+    {
+        $paymentmethod = BusinessSetting::where('key', $name)->first();
+        return $paymentmethod?->value;
+    }
+
+     public static function number_format_short( $n ) {
+        if ($n < 900) {
+            // 0 - 900
+            $n = $n;
+            $suffix = '';
+        } else if ($n < 900000) {
+            // 0.9k-850k
+            $n = $n / 1000;
+            $suffix = 'K';
+        } else if ($n < 900000000) {
+            // 0.9m-850m
+            $n = $n / 1000000;
+            $suffix = 'M';
+        } else if ($n < 900000000000) {
+            // 0.9b-850b
+            $n = $n / 1000000000;
+            $suffix = 'B';
+        } else {
+            // 0.9t+
+            $n = $n / 1000000000000;
+            $suffix = 'T';
+        }
+
+        if(!session()->has('currency_symbol_position')){
+            $currency_symbol_position = BusinessSetting::where(['key' => 'currency_symbol_position'])->first()->value;
+            session()->put('currency_symbol_position',$currency_symbol_position);
+        }
+        $currency_symbol_position = session()->get('currency_symbol_position');
+
+        return $currency_symbol_position == 'right' ? number_format($n, config('round_up_to_digit')).$suffix . ' ' . self::currency_symbol() : self::currency_symbol() . ' ' . number_format($n, config('round_up_to_digit')).$suffix;
+    }
 }
