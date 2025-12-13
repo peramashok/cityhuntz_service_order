@@ -17,6 +17,11 @@ use App\Http\Controllers\Api\V1\UserProfileController;
 
 Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], function () {
 
+    //Exports
+
+    Route::prefix('orders')->group(function () {
+        Route::get('order-report-export', 'ReportsController@order_report_export')->name('order-report');
+    });
    
     Route::group(['prefix' => 'member', 'middleware' => ['auth:api']], function () {
          Route::controller(VendorOrdersController::class)->group(function () {
@@ -27,6 +32,10 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
          Route::prefix('order')->controller(OrdersController::class)->group(function () {
              Route::post('list', 'getAllCustomersOrders')->name('list');
              Route::get('details/{id}', 'getOrderDetails')->name('details');
+         });
+
+         Route::prefix('reports')->controller(ReportsController::class)->group(function () {
+            Route::get('order-report', 'order_report')->name('order-report');
          });
     });
 
