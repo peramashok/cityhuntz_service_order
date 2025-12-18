@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Exports\OrderReportExport;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Models\Restaurant;
 
 class ReportsController extends Controller
 {
