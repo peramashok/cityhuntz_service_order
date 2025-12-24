@@ -21,7 +21,8 @@ use MatanYadaev\EloquentSpatial\Objects\Point;
 use Carbon\Carbon;
 use Illuminate\Validation\Rule;
 use App\Models\RestaurantTable;
-
+use App\Models\PaymentSetting;
+use App\Models\ReservedTableDetail;
 
 class BookATableController extends Controller
 {
@@ -257,12 +258,45 @@ class BookATableController extends Controller
             $bookATable->pending      = now();
             $bookATable->created_at   = now();
             $bookATable->save();
+            $bookATable->order_status = 'pending';
+            $bookATable->pending      = now();
+            $bookATable->created_at   = now();
+            $bookATable->save();
+
+
+            $tablesList=RestaurantTable::whereIn('restaurant_tables.id', $selectedTableNos)->where('restaurant_id', $request->restaurant_id)->get();
+            $total=0;
+            foreach($tablesList as $single){
+                $ReservedTableData = new ReservedTableDetail();
+                $ReservedTableData->order_id=$bookATable->id;
+                $ReservedTableData->table_no=$single->id;
+                $ReservedTableData->amount=$single->price;
+                $ReservedTableData->status='Booked';
+                $ReservedTableData->save();
+                $total=$total+$single->price;
+            }
+
+            $paymentSetting=PaymentSetting::where('id', 1)->first();
+            $platformFee=$paymentSetting->platform_fee;
+
+            $platformAmount=($total*$platformFee)/100;
+
+            $total_amount=$total+$platformAmount;
+
+            $bookATableUpdate =ReservedTable::findOrFail($bookATable->id);
+            $bookATable->order_amount     = $total;
+            $bookATable->processing_charges = $platformAmount;
+            $bookATable->total_amount = $total_amount;
+            $bookATable->save();
+
+
 
             return response()->json([
                 'status'       => 'success',
                 'message'      => 'You have successfully reserved your tables.',
                 'booking_id'   => $bookATable->id,
-                'booking_code' => $bookingCode
+                'booking_code' => $bookingCode,
+                'total_amount'=>$total_amount
             ], 200);
 
         } catch (\Exception $e) {
@@ -288,10 +322,8 @@ class BookATableController extends Controller
             $guest_id=$request->user ? $request->user->id : $request->guest_id;
             $is_guest=$request->user ? 0 : 1;
 
-            $reservation = ReservedTable::where('id', $id)->where('user_id', $guest_id)->where('is_guest', $is_guest)->first();
+            $reservation = ReservedTable::with('table_details')->where('id', $id)->where('user_id', $guest_id)->where('is_guest', $is_guest)->first();
             $tableIds = explode(',', $reservation->table_nos);
-
-            
 
             $tables = RestaurantTable::whereIn('id', $tableIds)->get();
 
@@ -522,7 +554,7 @@ class BookATableController extends Controller
                 return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
             }
 
-            $reservation = ReservedTable::with('customer:id,f_name,l_name,email,phone,image')->where('id', $id)->first();
+            $reservation = ReservedTable::with('customer:id,f_name,l_name,email,phone,image', 'table_details')->where('id', $id)->first();
 
             if(is_null($reservation)){
                  return response()->json([

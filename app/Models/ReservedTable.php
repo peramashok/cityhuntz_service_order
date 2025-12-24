@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class ReservedTable extends Model
 {
     use HasFactory;
-
+    public $timestamps = true; // false if table has no created_at/updated_at
 
     public function restaurantTables()
     {
@@ -26,4 +26,12 @@ class ReservedTable extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+
+    public function table_details()
+    {
+        return $this->hasMany(ReservedTableDetail::class, 'order_id');
+    }
 }
+
+
