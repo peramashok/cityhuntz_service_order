@@ -647,7 +647,7 @@ class OrdersController extends Controller
         $order->cutlery = $request->cutlery ? 1 : 0;
         $order->unavailable_item_note = $request->unavailable_item_note ?? null ;
         $order->delivery_instruction = $request->delivery_instruction ?? null ;
-        $order->tax_percentage = $restaurant->tax ;
+        $order->tax_percentage =0 ;
 
 
         $carts = Cart::where('user_id', $order->user_id)->where('restaurant_id', $restaurantId)->where('is_guest',$order->is_guest)
@@ -717,7 +717,7 @@ class OrdersController extends Controller
                     'food_details' => json_encode($product),
                     'quantity' => $c['quantity'],
                     'price' => round($price, config('round_up_to_digit')),
-                    'tax_amount' => Helpers::tax_calculate(food:$product, price:$price),
+                    'tax_amount' =>0,//Helpers::tax_calculate(food:$product, price:$price),
                     'discount_on_food' => Helpers::product_discount_calculate(product:$product, price:$price, restaurant:$restaurant),
                     'discount_type' => 'discount_on_product',
                     'variation' => null,//json_encode($variations),
@@ -774,7 +774,7 @@ class OrdersController extends Controller
 
         $total_tax_amount=Helpers::product_tax(price:$total_price, tax:$tax, is_include:$order->tax_status =='included');
 
-        $tax_a=$order->tax_status =='included'?0:$total_tax_amount;
+        //$tax_a=$order->tax_status =='included'?0:$total_tax_amount;
 
         if($restaurant->minimum_order > $product_price + $total_addon_price )
         {
