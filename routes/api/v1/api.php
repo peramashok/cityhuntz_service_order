@@ -86,7 +86,7 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
     Route::group(['prefix' => 'customer', 'middleware' => ['auth:api']], function () {
        
         Route::prefix('scratch_cards')->controller(ScratchCardController::class)->group(function () {
-            Route::get('list', 'getCustomersScratchCardsList');
+            Route::post('list', 'getCustomersScratchCardsList');
             Route::post('generate_scratch_card', 'generateScratchCard');
         });
        

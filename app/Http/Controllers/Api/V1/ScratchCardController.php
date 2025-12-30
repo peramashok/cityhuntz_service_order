@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Coupon;
-use Api\Models\UserScratchCard;
+use App\Models\UserScratchCard;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -83,7 +83,7 @@ class ScratchCardController extends Controller
                     $scrtchCard->save();
 
                     return response()->json([
-                        'status'=>'success'
+                        'status'=>'success',
                         'scratch_status' => 'win',
                         'coupon' => $coupon
                     ], 200);
@@ -91,7 +91,7 @@ class ScratchCardController extends Controller
             }
             //If loss the sent null
             return response()->json([
-                'status'=>'success'
+                'status'=>'success',
                 'scratch_status' => 'lose',
                 'coupon' => null
             ], 200);
@@ -123,19 +123,25 @@ class ScratchCardController extends Controller
             }
 
             $user = auth()->user();
+
+            $limit  = $request->input('limit', 10);
+            $offset = $request->input('offset', 0);
+
+            $page = floor($offset / $limit) + 1;
            
             $paginator = UserScratchCard::with('customer','restaurant', 'restaurant.vendor')
-            ->when($request->status == 'all', function($query){
-                return $query->where('status', $request->status);
+            ->when($request->status !== 'all', function ($query) use ($request) {
+                $query->where('status', $request->status);
             })
+            ->where('user_id', auth()->user()->id)
             ->latest()
-            ->paginate($request['limit'], ['*'], 'page', $request['offset']);
+            ->paginate($limit, ['*'], 'page', $page);
             
             $data = [
                 'total_size' => $paginator->total(),
-                'limit' => $request['limit'],
-                'offset' => $request['offset'],
-                'data' => $orders
+                'limit'      => $limit,
+                'offset'     => $offset,
+                'data'       => $paginator->items()
             ];
             return response()->json(['status'=>'success', 'data'=>$data], 200);
         } catch(\Extension $e){
