@@ -65,9 +65,6 @@ class VendorOrdersController extends Controller
             ->Notpos()
             ->orderBy('schedule_at', 'desc')
             ->get();
-
-
-
             
             $orders= Helpers::order_data_formatting($orders, true);
             return response()->json($orders, 200);

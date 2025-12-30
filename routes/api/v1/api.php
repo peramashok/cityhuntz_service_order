@@ -77,9 +77,18 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
         Route::get('current-orders', 'OrdersController@get_current_orders');
     });
 
+    Route::group(['prefix' => 'coupon', 'middleware' => 'auth:api'], function () {
+        Route::get('list', 'CouponController@list');
+        Route::get('apply', 'CouponController@apply');
+    });
+
 
     Route::group(['prefix' => 'customer', 'middleware' => ['auth:api']], function () {
-           
+       
+        Route::prefix('scratch_cards')->controller(ScratchCardController::class)->group(function () {
+            Route::post('list', 'getCustomersScratchCardsList');
+            Route::post('generate_scratch_card', 'generateScratchCard');
+        });
        
     });
 
@@ -98,10 +107,14 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
             // Route::post('refund-request', 'OrderController@refund_request');
             // Route::get('refund-reasons', 'OrderController@refund_reasons');
             Route::get('track', 'track_order');
+           
             // Route::put('payment-method', 'OrderController@update_payment_method');
             // Route::put('offline-payment', 'OrderController@offline_payment');
             // Route::put('offline-payment-update', 'OrderController@update_offline_payment_info');
         });
+
+
+         
 
          Route::prefix('book_a_table')->controller(BookATableController::class)->group(function () {
              Route::get('book_now', 'book_now');

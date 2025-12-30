@@ -5,7 +5,7 @@ namespace App\CentralLogics;
 use App\Models\Order;
 use App\Models\Restaurant;
 use Carbon\Carbon;
-
+use Api\Models\UserScratchCard;
 class CouponLogic
 {
     public static function get_discount($coupon, $order_amount)
@@ -69,6 +69,23 @@ class CouponLogic
         {
             $total = Order::where(['user_id' => $user_id])->count();
             if ($total < $coupon['limit']) {
+                return 200;
+            }else{
+                return 406;//Limite orer
+            }
+        }
+        else if($coupon->coupon_type == 'scratch_card')
+        {
+            $total = Order::where(['user_id' => $user_id, 'coupon_code' => $coupon['code']])->count();
+
+            if ($total < $total['limit']) {
+                $scrtchCard=UserScratchCard::where(['user_id' => $user_id, 'code' => $coupon['code']])->first();
+                if(is_null($scrtchCard)){
+                    return 406;//Limite orer
+                }
+                if($scrtchCard->status>0){
+                   return 406;//Limite orer 
+                }
                 return 200;
             }else{
                 return 406;//Limite orer
