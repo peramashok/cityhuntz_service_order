@@ -15,6 +15,8 @@ class ScratchCardController extends Controller
 {
    /**
     * generate scratch cards
+    * @param Illuminate\Http\Request
+    * @return Illuminate\Http\Response
     */
 
    public function generateScratchCard(Request $request)
@@ -50,16 +52,18 @@ class ScratchCardController extends Controller
                 ->where('status', 1)
                 ->get();
 
-            // 30% chance to win
+            // 30% chance to win and 70% loss
             $chance = rand(1, 100);
 
             if ($chance <= 30) {
+                //Get scratch details
                 $coupon = Coupon::whereIn('restaurant_id', $restaurantIds)
                     ->where('status', 1)
                     ->where('coupon_type', 'scratch_card')
                     ->inRandomOrder()
                     ->first();
 
+                //Save into customer account
                 if ($coupon) {
 
                     $scrtchCard=new UserScratchCard();
@@ -79,21 +83,23 @@ class ScratchCardController extends Controller
                     $scrtchCard->save();
 
                     return response()->json([
-                        'status' => 'win',
+                        'status'=>'success'
+                        'scratch_status' => 'win',
                         'coupon' => $coupon
-                    ]);
+                    ], 200);
                 }
             }
-
+            //If loss the sent null
             return response()->json([
-                'status' => 'lose',
+                'status'=>'success'
+                'scratch_status' => 'lose',
                 'coupon' => null
-            ]);
+            ], 200);
         } catch(\Exception $e){
               return response()->json([
                'status' => 'failed',
                'message' => "Something went wrong. ",
-               'error'=>$e->getLine()."-".$e->getMessage()
+               'error'=>$e->getLine()."- at line nu: ".$e->getMessage()
              ], 500);
         }
    }
@@ -103,7 +109,7 @@ class ScratchCardController extends Controller
     * @param Illuminate\Http\Request
     * @return Illuminate\Http\Response
     */
-   public function get_customer_order_list(Request $request)
+   public function getCustomersScratchCardsList(Request $request)
    {
        try{
             $validator = Validator::make($request->all(), [

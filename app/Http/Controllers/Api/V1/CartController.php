@@ -21,6 +21,8 @@ class CartController extends Controller
         try{
             $validator = Validator::make($request->all(), [
                 'guest_id' => $request->user ? 'nullable' : 'required',
+                'latitude'=>'required',
+                'longitude'=>'required'
             ]);
 
             if ($validator->fails()) {
@@ -28,18 +30,71 @@ class CartController extends Controller
             }
             $user_id = $request->user ? $request->user->id : $request['guest_id'];
             $is_guest = $request->user ? 0 : 1;
+
+            $orderType='';
             $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
             ->map(function ($data) {
                 $data->restaurant_name =$data->restaurant?->name;
-                $data->add_on_ids = json_decode($data->add_on_ids,true);
-                $data->add_on_qtys = json_decode($data->add_on_qtys,true);
-                $data->variations = json_decode($data->variations,true);
+                $data->add_on_ids = json_decode($data->add_on_ids, true) ?? [];
+                $data->add_on_qtys = json_decode($data->add_on_qtys,true)?? [];
+                $data->variations = json_decode($data->variations,true) ?? [];
                 $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations,$data->add_on_ids,
                 $data->add_on_qtys, false, app()->getLocale());
                 unset($data->restaurant);
+                $orderType=$data->order_type;
                 return $data;
             });
-            return response()->json(['status'=>'success','data'=>$carts], 200);
+
+
+            // $carts = Cart::with('restaurant')
+            // ->where('user_id', $user_id)
+            // ->where('is_guest', $is_guest)
+            // ->get()
+            // ->map(function ($data) {
+
+            //     $data->restaurant_name = $data->restaurant?->name;
+
+            //     $data->add_on_ids  = json_decode($data->add_on_ids, true) ?? [];
+            //     $data->add_on_qtys = json_decode($data->add_on_qtys, true) ?? [];
+            //     $data->variations  = json_decode($data->variations, true) ?? [];
+
+            //     $data->item = Helpers::cart_product_data_formatting(
+            //         $data->item,
+            //         $data->variations,
+            //         $data->add_on_ids,
+            //         $data->add_on_qtys,
+            //         false,
+            //         app()->getLocale()
+            //     );
+
+            //     $data->makeHidden('restaurant');
+
+            //     return $data;
+            // });
+
+
+           // $carts = Cart::with('restaurant:id,name,latitude,longitude')
+           //  ->where('user_id', $user_id)
+           //  ->where('is_guest', $is_guest)
+           //  ->get()
+           //  ->groupBy(fn ($item) => $item->restaurant_id . '_' . $item->order_type);
+
+
+           //  $distance=array();
+                
+           //  $carts =$carts->groupBy('restaurant_id')->map(function ($items) {
+           //      return [
+           //          'restaurant_id'   => $items->first()->restaurant_id,
+           //          'restaurant_name' => $items->first()->restaurant_name,
+           //          'order_type'      => $items->first()->order_type, // ✅
+           //          'items'           => $items,
+           //      ];
+           //  });
+
+
+            $paymentSettings=PaymentSetting::where('id', 1)->first();
+
+            return response()->json(['status'=>'success','data'=>$carts, 'payment_settings'=>$paymentSettings], 200);
         } catch(\Extension $e){
              return response()->json([
                    'status' => 'failed',
@@ -47,6 +102,23 @@ class CartController extends Controller
                    'error'=>$e->getMessage()
                  ], 500);
         }
+    }
+
+
+    function calculateDistance($lat1, $lon1, $lat2, $lon2)
+    {
+        $earthRadius = 6371; // KM
+
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+
+        $a = sin($dLat/2) * sin($dLat/2) +
+             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+             sin($dLon/2) * sin($dLon/2);
+
+        $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+
+        return round($earthRadius * $c, 2);
     }
 
 
