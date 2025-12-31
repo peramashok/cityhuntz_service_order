@@ -741,7 +741,7 @@ class Helpers
     }
 
 
-   public static function cart_product_data_formatting($data, $selected_variation=[], $selected_addons=[], $selected_addon_quantity=[],$trans = false, $local = 'en')
+   public static function cart_product_data_formatting($data, $selected_variation=[], $selected_variation_options=[], $selected_addons=[], $selected_addon_quantity=[],$trans = false, $local = 'en')
     {
 
         $variations = [];
@@ -797,21 +797,63 @@ class Helpers
             unset($data['end_date']);
         }
         $data_variation = $data['variations']?(gettype($data['variations']) == 'array' ? $data['variations'] : json_decode($data['variations'],true)):[];
+
+
+        // foreach ($data_variation as $item1) {
+        //     foreach ($selected_variation as &$item2) {
+        //         if ($item1["name"] === $item2["name"]) {
+        //             foreach ($item2["values"] as &$value) {
+        //                 if (in_array($value["label"], $item1["values"]["label"])) {
+        //                     $value["isSelected"] = true;
+        //                 }else{
+        //                     $value["isSelected"] = false;
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+
+        // foreach ($selected_variation as $item1) {
+        //     foreach ($data_variation as &$item2) {
+        //         if ($item1["name"] === $item2["name"]) {
+        //             foreach ($item2["values"] as &$value) {
+        //                 if (in_array($value["label"], $item1["values"]["label"])) {
+        //                     $value["isSelected"] = true;
+        //                 }else{
+        //                     $value["isSelected"] = false;
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+
+        $variation_options = $selected_variation_options;
+
         
-        foreach ($selected_variation as $item1) {
-            foreach ($data_variation as &$item2) {
-                if ($item1["name"] === $item2["name"]) {
-                    foreach ($item2["values"] as &$value) {
-                        if (in_array($value["label"], $item1["values"]["label"])) {
-                            $value["isSelected"] = true;
-                        }else{
-                            $value["isSelected"] = false;
-                        }
-                    }
+
+       // Loop through variations
+        foreach ($data_variation as &$variation) {
+
+            // Ensure 'values' exists and is array
+            if (!isset($variation['values']) || !is_array($variation['values'])) {
+                continue;
+            }
+
+            // Loop through each option
+            foreach ($variation['values'] as &$value) {
+
+                // Set isSelected based on option_id
+                if (
+                    isset($value['option_id']) &&
+                    in_array($value['option_id'], $variation_options, true)
+                ) {
+                    $value['isSelected'] = true;
+                } else {
+                    $value['isSelected'] = false;
                 }
             }
         }
-
+       
         $data['variations'] = $data_variation;
         $data['restaurant_name'] = $data->restaurant->name;
         $data['restaurant_status'] = (int) $data->restaurant->status;
