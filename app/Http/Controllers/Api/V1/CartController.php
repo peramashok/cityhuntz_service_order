@@ -22,8 +22,8 @@ class CartController extends Controller
         try{
             $validator = Validator::make($request->all(), [
                 'guest_id' => $request->user ? 'nullable' : 'required',
-                'latitude'=>'required',
-                'longitude'=>'required'
+                // 'latitude'=>'required',
+                // 'longitude'=>'required'
             ]);
 
             if ($validator->fails()) {
@@ -43,8 +43,6 @@ class CartController extends Controller
                 $data->add_on_qtys, false, app()->getLocale());
                 return $data;
             });
-
-            
 
             $paymentSettings=PaymentSetting::where('id', 1)->first();
 
