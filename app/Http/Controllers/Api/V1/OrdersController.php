@@ -34,6 +34,7 @@ use App\Models\SubscriptionSchedule;
 use App\Models\DeliveryMan;
 use App\Models\Category;
 use Carbon\Carbon;
+use App\Models\PaymentSetting;
 
 class OrdersController extends Controller
 {
@@ -688,6 +689,7 @@ class OrdersController extends Controller
 
                 $addon_data = Helpers::calculate_addon_price(addons: \App\Models\AddOn::whereIn('id',$c['add_on_ids'])->get(), add_on_qtys: $c['add_on_qtys']);
 
+              
                 if($code == 'food'){
                     $variation_options =  is_string(data_get($c,'variation_options')) ? json_decode(data_get($c,'variation_options') ,true) : [];
                     $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$product,quantity: $c['quantity'],add_on_qtys:$c['add_on_qtys'], variation_options:$variation_options,add_on_ids:$c['add_on_ids'],incrementCount: true );
@@ -720,9 +722,9 @@ class OrdersController extends Controller
                     'tax_amount' =>0,//Helpers::tax_calculate(food:$product, price:$price),
                     'discount_on_food' => Helpers::product_discount_calculate(product:$product, price:$price, restaurant:$restaurant),
                     'discount_type' => 'discount_on_product',
-                    'variation' => null,//json_encode($variations),
-                    'add_ons' => null,//json_encode($addon_data['addons']),
-                    'total_add_on_price' => 0, //$addon_data['total_add_on_price'],
+                    'variation' =>json_encode($variations),
+                    'add_ons' => json_encode($addon_data['addons']),
+                    'total_add_on_price' => $addon_data['total_add_on_price'],
                     'created_at' => now(),
                     'updated_at' => now()
                 ];
@@ -772,9 +774,9 @@ class OrdersController extends Controller
             $order->tax_status = 'included';
         }
 
-        $total_tax_amount=Helpers::product_tax(price:$total_price, tax:$tax, is_include:$order->tax_status =='included');
+        $total_tax_amount=0;//Helpers::product_tax(price:$total_price, tax:$tax, is_include:$order->tax_status =='included');
 
-        //$tax_a=$order->tax_status =='included'?0:$total_tax_amount;
+        $tax_a=0;//$order->tax_status =='included'?0:$total_tax_amount;
 
         if($restaurant->minimum_order > $product_price + $total_addon_price )
         {
@@ -841,6 +843,16 @@ class OrdersController extends Controller
             $order->total_tax_amount= round($total_tax_amount, config('round_up_to_digit'));
             $order->order_amount = $order_amount + $order->dm_tips;
 
+            $total=$order_amount + $order->dm_tips;
+
+            $paymentSettings=PaymentSetting::where('id', 1)->first();
+
+            $processing_fee = $total * ($paymentSettings->platform_fee)/100; 
+
+            $order->processing_charges = $processing_fee;
+
+            $order->order_amount = $order_amount + $order->dm_tips+$processing_fee;
+
 
             if( $max_cod_order_amount_value > 0 && $order->payment_method == 'cash_on_delivery' && $order->order_amount > $max_cod_order_amount_value){
                 return  ['status'=>'failed','code' => 'order_amount', 'message' => translate('messages.You can not Order more then ').$max_cod_order_amount_value .Helpers::currency_symbol().' '. translate('messages.on COD order.')];
@@ -871,7 +883,6 @@ class OrdersController extends Controller
                 },json_decode($request->subscription_days, true));
                 // info(['SubscriptionSchedule_____', $days]);
                 SubscriptionSchedule::insert($days);
-
                 // $order->checked = 1;
             }
 
@@ -890,8 +901,6 @@ class OrdersController extends Controller
 
 
             $res=OrderDetail::insert($order_details);
-
-           
             if(!isset($request->is_buy_now) || (isset($request->is_buy_now) && $request->is_buy_now == 0 )){
                 foreach ($carts as $cart) {
                     $cart->delete();
@@ -931,7 +940,9 @@ class OrdersController extends Controller
             
             //PlaceOrderMail Notification
             
-           
+            $paymentSettings=PaymentSetting::where('id', 1)->first();
+
+
  
             return [
                 'status'=>'success', 
