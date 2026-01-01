@@ -43,7 +43,6 @@ class CartController extends Controller
                 $data->add_on_qtys, false, app()->getLocale());
                 return $data;
             });
-
             $paymentSettings=PaymentSetting::where('id', 1)->first();
 
             return response()->json(['status'=>'success','data'=>$carts, 'payment_settings'=>$paymentSettings], 200);

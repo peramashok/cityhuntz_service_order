@@ -269,7 +269,8 @@ class BookATableController extends Controller
             foreach($tablesList as $single){
                 $ReservedTableData = new ReservedTableDetail();
                 $ReservedTableData->order_id=$bookATable->id;
-                $ReservedTableData->table_no=$single->id;
+                $ReservedTableData->table_id=$single->id;
+                $ReservedTableData->table_no=$single->table_name;
                 $ReservedTableData->amount=$single->price;
                 $ReservedTableData->status='Booked';
                 $ReservedTableData->save();
@@ -322,14 +323,14 @@ class BookATableController extends Controller
             $guest_id=$request->user ? $request->user->id : $request->guest_id;
             $is_guest=$request->user ? 0 : 1;
 
-            $reservation = ReservedTable::with('table_details')->where('id', $id)->where('user_id', $guest_id)->where('is_guest', $is_guest)->first();
+            $reservation = ReservedTable::with('table_details', 'table_details.restaurantTables')->where('id', $id)->where('user_id', $guest_id)->where('is_guest', $is_guest)->first();
             $tableIds = explode(',', $reservation->table_nos);
 
             $tables = RestaurantTable::whereIn('id', $tableIds)->get();
 
              return response()->json([
                'status' => 'success',
-               'data' => ['reservation'=>$reservation, 'tables_list'=>$tables] 
+               'data' => ['reservation'=>$reservation] 
              ], 200);
 
          } catch(\Exception $e){
