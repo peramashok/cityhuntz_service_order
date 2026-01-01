@@ -20,6 +20,6 @@ class ReservedTableDetail extends Model
 
     public function restaurantTables()
     {
-        return $this->belongsTo(RestaurantTable::class, 'table_nos');
+        return $this->belongsTo(RestaurantTable::class, 'table_id');
     }
 }
