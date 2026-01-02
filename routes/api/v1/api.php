@@ -21,6 +21,8 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
 
     Route::prefix('orders')->group(function () {
         Route::get('order-report-export', 'ReportsController@order_report_export')->name('order-report');
+
+         Route::get('download_printer_invoice/{order_id}', 'OrdersController@downloadPrinterInvoice')->name('download_printer_invoice');
     });
    
     Route::group(['prefix' => 'member', 'middleware' => ['auth:api']], function () {

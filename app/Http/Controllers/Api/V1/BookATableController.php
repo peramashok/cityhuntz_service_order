@@ -270,7 +270,7 @@ class BookATableController extends Controller
                 $ReservedTableData = new ReservedTableDetail();
                 $ReservedTableData->order_id=$bookATable->id;
                 $ReservedTableData->table_id=$single->id;
-                $ReservedTableData->table_no=$single->table_name;
+                $ReservedTableData->table_name=$single->table_name;
                 $ReservedTableData->amount=$single->price;
                 $ReservedTableData->status='Booked';
                 $ReservedTableData->save();

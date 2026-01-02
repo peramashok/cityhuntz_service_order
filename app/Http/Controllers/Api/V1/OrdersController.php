@@ -1422,4 +1422,47 @@ class OrdersController extends Controller
         }
     }
 
+
+    public function downloadPrinterInvoice($orderId)
+    {
+        try{
+           
+            $order = Order::with('restaurant', 'restaurant.stateInfo')->where('id', $orderId)->first();
+
+            if (is_null($order)) {
+                 return response()->json([
+                   'status' => 'failed',
+                   'message' => "No order details found" 
+                 ], 400); 
+            }
+
+            $orderDetailsResults = OrderDetail::with('food')->where('order_id', $order->id)->get();
+
+            $logoPath = public_path('assets/img/Logo.png'); // Correct absolute server path
+
+            $logoBase64 = base64_encode(file_get_contents($logoPath));
+             
+            $pdf = Pdf::loadView('pdf.printer_invoice', compact('order', 'logoBase64', 'orderDetailsResults'))
+              ->setOptions([
+                  'defaultFont' => 'sans-serif',
+                  'isRemoteEnabled' => true // still ok if you want remote images
+            ]);
+
+
+
+
+           return $pdf->download('printer_invoice-' . rand(00001, 99999) . '.pdf');
+
+
+            
+
+        } catch(\Exception $e){
+              return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getLine()."-".$e->getMessage()
+             ], 500);
+        }
+    }
+
 }
