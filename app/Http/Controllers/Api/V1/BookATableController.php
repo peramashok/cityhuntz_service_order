@@ -628,7 +628,7 @@ class BookATableController extends Controller
                 ], 403);
             }
 
-             $restaurant=Restaurant::where('restaurant_id', $request->restaurant_id)->first();
+             $restaurant=Restaurant::where('id', $request->restaurant_id)->first();
 
             if($restaurant->vendor_id!=$vendor->id){
                 return response()->json([
