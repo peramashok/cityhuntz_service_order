@@ -616,10 +616,8 @@ class BookATableController extends Controller
             }
 
             $vendor = auth()->user();
-            $order = ReservedTable::with('restaurant')->where('restaurant_id', $request->restaurant_id)->whereHas('restaurant.vendor', function($query) use($vendor){
-                $query->where('id', $vendor->id);
-            })
-            ->first();
+            $order = ReservedTable::with('restaurant')->where('restaurant_id', $request->restaurant_id)->first();
+
 
             if(!$order)
             {
@@ -630,13 +628,22 @@ class BookATableController extends Controller
                 ], 403);
             }
 
+             $restaurant=Restaurant::where('restaurant_id', $request->restaurant_id)->first();
+
+            if($restaurant->vendor_id!=$vendor->id){
+                return response()->json([
+                    'status'=>'failed',
+                    'code' => 'booking', 
+                    'message' => "You can’t change status of other restaurant's bookings"
+                ], 403);
+            }
 
             $restaurant=$order->restaurant;
             $data =0;
             if ($restaurant?->restaurant_model == 'subscription'){
             // $data =1;
             }
-dd($order);
+ 
             // if($request['status'] =="confirmed" && !$data)
             // {
 
