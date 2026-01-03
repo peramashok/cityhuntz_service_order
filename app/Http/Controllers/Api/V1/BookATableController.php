@@ -616,9 +616,7 @@ class BookATableController extends Controller
             }
 
             $vendor = auth()->user();
-            $order = ReservedTable::with('restaurant')->where('restaurant_id', $request->restaurant_id)->first();
-
-
+            $order = ReservedTable::with('restaurant')->where('id', $request->booking_id)->where('restaurant_id', $request->restaurant_id)->first();
             if(!$order)
             {
                 return response()->json([
