@@ -636,7 +636,7 @@ class BookATableController extends Controller
             if ($restaurant?->restaurant_model == 'subscription'){
             // $data =1;
             }
-
+dd($order);
             // if($request['status'] =="confirmed" && !$data)
             // {
 
