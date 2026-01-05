@@ -1532,4 +1532,15 @@ class Helpers
 
         return $currency_symbol_position == 'right' ? number_format($n, config('round_up_to_digit')).$suffix . ' ' . self::currency_symbol() : self::currency_symbol() . ' ' . number_format($n, config('round_up_to_digit')).$suffix;
     }
+
+
+    public static function get_zones_name($zones){
+        if(is_array($zones)){
+            $data = Zone::whereIn('id',$zones)->pluck('name')->toArray();
+        }else{
+            $data = Zone::where('id',$zones)->pluck('name')->toArray();
+        }
+        $data = implode(', ', $data);
+        return $data;
+    }
 }
