@@ -64,6 +64,14 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
              Route::post('update_status', 'updateBookingStatus');
         });
 
+
+         Route::group(['prefix' => 'delivery-man'], function () {
+            Route::controller(DeliverymanController::class)->group(function () {
+                Route::get('get-delivery-man-list', 'get_delivery_man_list');
+                Route::get('assign-deliveryman', 'assign_deliveryman');
+            });
+        });
+
         Route::group(['prefix' => 'message'], function () {
             Route::controller(VendorConversationController::class)->group(function () {
                 Route::get('list', 'conversations');

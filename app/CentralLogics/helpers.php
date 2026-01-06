@@ -34,6 +34,7 @@ use App\CentralLogics\CouponLogic;
 use App\Models\Currency;
 use App\Models\VisitorLog;
 use App\Models\CashBack;
+use App\Models\NotificationMessage;
 
 class Helpers
 { 
@@ -1543,4 +1544,109 @@ class Helpers
         $data = implode(', ', $data);
         return $data;
     }
+
+
+      public static function text_variable_data_format($value,$user_name=null,$restaurant_name=null,$delivery_man_name=null,$transaction_id=null,$order_id=null,$add_id= null)
+    {
+        $data = $value;
+        if ($value) {
+            if($user_name){
+                $data =  str_replace("{userName}", $user_name, $data);
+            }
+
+            if($restaurant_name){
+                $data =  str_replace("{restaurantName}", $restaurant_name, $data);
+            }
+
+            if($delivery_man_name){
+                $data =  str_replace("{deliveryManName}", $delivery_man_name, $data);
+            }
+
+            if($transaction_id){
+                $data =  str_replace("{transactionId}", $transaction_id, $data);
+            }
+
+            if($order_id){
+                $data =  str_replace("{orderId}", $order_id, $data);
+            }
+            if($add_id){
+                $data =  str_replace("{advertisementId}", $add_id, $data);
+            }
+        }
+
+        return $data;
+    }
+
+
+
+
+
+    public static function order_status_update_message($status, $lang='default')
+    {
+        if ($status == 'pending') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_pending_message')->first();
+        } elseif ($status == 'confirmed') {
+            $data =  NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_confirmation_msg')->first();
+        } elseif ($status == 'processing') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_processing_message')->first();
+        } elseif ($status == 'picked_up') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'out_for_delivery_message')->first();
+        } elseif ($status == 'handover') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_handover_message')->first();
+        } elseif ($status == 'delivered') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_delivered_message')->first();
+        } elseif ($status == 'delivery_boy_delivered') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'delivery_boy_delivered_message')->first();
+        } elseif ($status == 'accepted') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'delivery_boy_assign_message')->first();
+        } elseif ($status == 'canceled') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_cancled_message')->first();
+        } elseif ($status == 'refunded') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_refunded_message')->first();
+        } elseif ($status == 'refund_request_canceled') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'refund_request_canceled')->first();
+        } elseif ($status == 'offline_verified') {
+        $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+            $query->where('locale', $lang);
+        }])->where('key', 'offline_order_accept_message')->first();
+        } elseif ($status == 'offline_denied') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'offline_order_deny_message')->first();
+        } else {
+            $data = ["status"=>"0","message"=>"",'translations'=>[]];
+        }
+
+        if($data){
+            if ($data['status'] == 0) {
+                return 0;
+            }
+            return $data['message'];
+        }else{
+            return false;
+        }
+    }
+
 }
