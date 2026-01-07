@@ -149,27 +149,57 @@ class DeliveryMan extends Authenticatable
 
     public function getImageFullUrlAttribute(){
         $value = $this->image;
-        if (count($this->storage) > 0) {
-            foreach ($this->storage as $storage) {
-                if ($storage['key'] == 'image') {
-                    return Helpers::get_full_url('delivery-man',$value,$storage['value']);
-                }
-            }
-        }
+        // if (count($this->storage) > 0) {
+        //     foreach ($this->storage as $storage) {
+        //         if ($storage['key'] == 'image') {
+        //             return Helpers::get_full_url('delivery-man',$value,$storage['value']);
+        //         }
+        //     }
+        // }
 
-        return Helpers::get_full_url('delivery-man',$value,'public');
+        return $value; //Helpers::get_full_url('delivery-man',$value,'public');
     }
     public function getIdentityImageFullUrlAttribute(){
+        // $images = [];
+        // $value = is_array($this->identity_image)
+        //     ? $this->identity_image
+        //     : ($this->identity_image && is_string($this->identity_image) && $this->isValidJson($this->identity_image)
+        //         ? json_decode($this->identity_image, true)
+        //         : []);
+        // if ($value){
+        //     foreach ($value as $item){
+        //         // $item = is_array($item)?$item:(is_object($item) && get_class($item) == 'stdClass' ? json_decode(json_encode($item), true):['img' => $item, 'storage' => 'public']);
+        //         $images[] =$item['img']; //Helpers::get_full_url('delivery-man',$item['img'],$item['storage']);
+        //     }
+        // }
+
+        // return $images;
+
+
+
         $images = [];
+
         $value = is_array($this->identity_image)
             ? $this->identity_image
-            : ($this->identity_image && is_string($this->identity_image) && $this->isValidJson($this->identity_image)
-                ? json_decode($this->identity_image, true)
-                : []);
-        if ($value){
-            foreach ($value as $item){
-                $item = is_array($item)?$item:(is_object($item) && get_class($item) == 'stdClass' ? json_decode(json_encode($item), true):['img' => $item, 'storage' => 'public']);
-                $images[] = Helpers::get_full_url('delivery-man',$item['img'],$item['storage']);
+            : (
+                $this->identity_image &&
+                is_string($this->identity_image) &&
+                $this->isValidJson($this->identity_image)
+                    ? json_decode($this->identity_image, true)
+                    : []
+            );
+
+        if (!empty($value)) {
+            foreach ($value as $item) {
+
+                // Convert stdClass to array if needed
+                if (is_object($item)) {
+                    $item = (array) $item;
+                }
+
+                if (isset($item['img'])) {
+                    $images[] = $item['img'];
+                }
             }
         }
 
