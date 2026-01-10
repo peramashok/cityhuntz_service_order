@@ -673,6 +673,56 @@ class Helpers
             if(is_array($variation_options) && (data_get($variation_options,0) != ''|| data_get($variation_options,0)  != null)) {
                 $variation_options= VariationOption::whereIn('id', $variation_options)->get();
                 foreach($variation_options as $variation_option){
+                    if($variation_option->stock_type !== 'unlimited'){
+                        $availableStock=$variation_option->total_stock  - $variation_option->sell_count;
+                        if(is_array($old_selected_variations) && data_get($old_selected_variations, $variation_option->id) ){
+                            $availableStock= $availableStock + data_get($old_selected_variations, $variation_option->id);
+                        }
+                        if($availableStock <= 0 || $availableStock < $quantity){
+                            return ['out_of_stock' => $availableStock > 0 ? translate('Only') .' '.$availableStock . " ". translate('Quantity_is_abailable_for').' '.$product?->name.' \'s ' . $variation_option->option_name .' ' . translate('Variation_!!!') : $product?->name.' \'s ' . $variation_option->option_name .' ' . translate('Variation_is_out_of_stock_!!!') ,
+                                    'id'=>$variation_option->id,
+                                    'current_stock' =>  $availableStock > 0 ?  $availableStock : 0,
+                                    ];
+                        }
+                        if($incrementCount == true){
+                            $variation_option->increment('sell_count',$quantity);
+                        }
+                    }
+                }
+            }
+        }
+
+        if(is_array($add_on_ids) && count($add_on_ids) > 0) {
+            $addonsArray=array();
+            $addonQtysArray=array();
+            foreach($add_on_ids as $addon){
+                $addonsArray[]=$addon['add_on_id'];
+                $addonQtysArray[]=$addon['add_on_qty'];  
+            }
+            return  Helpers::calculate_addon_price(addons: AddOn::whereIn('id',$addonsArray)->get(), add_on_qtys: $addonQtysArray ,incrementCount:$incrementCount ,old_selected_addons:$old_selected_addons);
+        }
+        return null;
+    }
+
+
+   public static function addonAndVariationStockCheckOld($product, $quantity=1, $add_on_qtys=1, $variation_options=null,$add_on_ids= null ,$incrementCount = false ,$old_selected_variations=[] ,$old_selected_without_variation = 0,$old_selected_addons=[]){
+
+        if($product?->stock_type && $product?->stock_type !== 'unlimited'){
+            $availableMainStock=$product->item_stock + $old_selected_without_variation ;
+            if(  $availableMainStock <= 0 || $availableMainStock < $quantity  ){
+                return [
+                    'out_of_stock' =>$availableMainStock > 0 ? translate('Only') .' '.$availableMainStock . " ". translate('Quantity_is_abailable_for').' '.$product?->name : $product?->name.' ' . translate('is_out_of_stock_!!!') ,
+                    'id'=>$product->id,
+                'current_stock' =>  $availableMainStock > 0 ?  $availableMainStock : 0,
+                ];
+            }
+            if($product?->stock_type && $incrementCount == true){
+                $product->increment('sell_count',$quantity);
+            }
+
+            if(is_array($variation_options) && (data_get($variation_options,0) != ''|| data_get($variation_options,0)  != null)) {
+                $variation_options= VariationOption::whereIn('id', $variation_options)->get();
+                foreach($variation_options as $variation_option){
                         if($variation_option->stock_type !== 'unlimited'){
                             $availableStock=$variation_option->total_stock  - $variation_option->sell_count;
                             if(is_array($old_selected_variations) && data_get($old_selected_variations, $variation_option->id) ){
@@ -742,7 +792,7 @@ class Helpers
     }
 
 
-   public static function cart_product_data_formatting($data, $selected_variation=[], $selected_variation_options=[], $selected_addons=[], $selected_addon_quantity=[],$trans = false, $local = 'en')
+   public static function cart_product_data_formatting($data, $selected_variation=[], $selected_variation_options=[], $selectedAddons=[], $selected_addon_quantity=[],$trans = false, $local = 'en')
     {
 
         $variations = [];
@@ -758,13 +808,20 @@ class Helpers
         $data_addons = self::addon_data_formatting(AddOn::whereIn('id', $add_ons)->active()->get(), true, $trans, $local);
 
          // FIX: ensure both variables are arrays
+
+        $selected_addons=array();
+        $selected_addon_quantity=array();
+        foreach($selectedAddons as $addon){
+            $selected_addons[]=$addon['add_on_id'];
+            $selected_addon_quantity[]=$addon['add_on_qty'];  
+        }
+
         $selected_addons = is_array($selected_addons) ? $selected_addons : [];
-
-
         $selected_addon_quantity = is_array($selected_addon_quantity) ? $selected_addon_quantity : [];
-        $selected_variation = is_array($selected_variation) ? $selected_variation : [];
-
+        
         $selected_data = array_combine($selected_addons, $selected_addon_quantity);
+
+        $selected_data = $selected_addons;
         foreach ($data_addons as $addon) {
             $addon_id = $addon['id'];
             if (in_array($addon_id, $selected_addons)) {
@@ -775,6 +832,8 @@ class Helpers
                 $addon['quantity'] = 0;
             }
         }
+
+
         $data['addons'] = $data_addons;
 
         if ($data->title) {
@@ -828,6 +887,15 @@ class Helpers
         //     }
         // }
 
+        $selected_variation = is_array($selected_variation) ? $selected_variation : [];
+
+        $selected_variation_options=array();
+       
+        foreach($selected_variation as $variation){
+            $selected_variation_options[]=$variation['variation_option_id'];
+        
+        }
+
         $variation_options = $selected_variation_options;
 
         
@@ -854,7 +922,6 @@ class Helpers
                 }
             }
         }
-       
         $data['variations'] = $data_variation;
         $data['restaurant_name'] = $data->restaurant->name;
         $data['restaurant_status'] = (int) $data->restaurant->status;
@@ -944,6 +1011,28 @@ class Helpers
         $result = [];
         $variation_price = 0;
 
+        foreach($variations as $variation){
+            
+            foreach($product_variations as  $product_variation){
+                if(isset($product_variation['values'])){ 
+                    foreach($product_variation['values'] as $key=> $option){
+                        if(in_array($option['option_id'], $variation)){
+                            $result[] = $option;
+                            $variation_price += $option['optionPrice'];
+                        }
+                    }
+                }
+            }
+        }
+
+        return ['price'=>$variation_price,'variations'=>array_values($result)];
+    }
+
+    public static function get_varientold(array $product_variations, array $variations)
+    {
+        $result = [];
+        $variation_price = 0;
+
         foreach($variations as $k=> $variation){
             foreach($product_variations as  $product_variation){
                 if( isset($variation['values']) && isset($product_variation['values']) && $product_variation['name'] == $variation['name']  ){
@@ -961,7 +1050,6 @@ class Helpers
 
         return ['price'=>$variation_price,'variations'=>array_values($result)];
       }
-
  public static function product_data_formatting($data, $multi_data = false, $trans = false, $local = 'en')
     {
         $storage = [];

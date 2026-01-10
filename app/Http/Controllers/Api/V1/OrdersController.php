@@ -380,7 +380,7 @@ class OrdersController extends Controller
               return response()->json([
                'status' => 'failed',
                'message' => "Something went wrong. ",
-                'error'=>$e->getLine()." ".$e->getMessage()
+                'error'=>$e->getMessage()." at line no: ".$e->getLine()." in ".$e->getFile()
              ], 500);
         }
     }
@@ -687,27 +687,46 @@ class OrdersController extends Controller
                      return  ['status'=>'failed', 'code' => 'quantity', 'message' =>$product?->name ?? $product?->title ?? $code.' '.translate('messages.has_reached_the_maximum_cart_quantity_limit')];
                 }
 
-                $addon_data = Helpers::calculate_addon_price(addons: \App\Models\AddOn::whereIn('id',$c['add_on_ids'])->get(), add_on_qtys: $c['add_on_qtys']);
 
+                
+                 $selectedAddons=$c->add_on_ids ?? [];
+
+                 $selected_addons=array();
+                 $selected_addon_quantity=array();
+                 foreach($selectedAddons as $addon){
+                    $selected_addons[]=$addon['add_on_id'];
+                    $selected_addon_quantity[]=$addon['add_on_qty'];  
+                 }
+
+                $addon_data = Helpers::calculate_addon_price(addons: \App\Models\AddOn::whereIn('id',$selected_addons)->get(), add_on_qtys: $selected_addon_quantity);
+
+
+                $variation_options=array();
+                $selectedVariations=$c->variations ?? [];
+                foreach($selectedVariations as $variationOption){
+                    $variation_options[]=$variationOption['variation_option_id'];
+                }
               
                 if($code == 'food'){
-                    $variation_options =  is_string(data_get($c,'variation_options')) ? json_decode(data_get($c,'variation_options') ,true) : [];
-                    $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$product,quantity: $c['quantity'],add_on_qtys:$c['add_on_qtys'], variation_options:$variation_options,add_on_ids:$c['add_on_ids'],incrementCount: true );
+                   
+                    $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$product,quantity: $c['quantity'],add_on_qtys:$selected_addon_quantity, variation_options:$variation_options,add_on_ids:$selectedAddons,incrementCount: true );
                     if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
                         return  ['status'=>'failed', 'code' => data_get($addonAndVariationStock, 'type') ?? 'food', 'message' =>data_get($addonAndVariationStock, 'out_of_stock') ];
                     }
                 }
 
                 $product_variations = json_decode($product->variations, true);
+
                 $variations=[];
-                $c['variations']=[];
+               
                 if (count($product_variations)) {
-                    $variation_data = Helpers::get_varient($product_variations, $c['variations']);
+                    $variation_data = Helpers::get_varient($product_variations, $selectedVariations);
                     $price = $product['price'] + $variation_data['price'];
                     $variations = $variation_data['variations'];
                 } else {
                     $price = $product['price'];
                 }
+ 
 
                 $product->tax = $restaurant->tax;
 
@@ -849,9 +868,9 @@ class OrdersController extends Controller
 
             $processing_fee = $total * ($paymentSettings->platform_fee)/100; 
 
-            $order->processing_charges = $processing_fee;
+            $order->processing_charges = round($processing_fee,2);
 
-            $order->order_amount = $order_amount + $order->dm_tips+$processing_fee;
+            $order->order_amount = round($order_amount + $order->dm_tips+$processing_fee,2);
 
 
             if( $max_cod_order_amount_value > 0 && $order->payment_method == 'cash_on_delivery' && $order->order_amount > $max_cod_order_amount_value){
@@ -1448,14 +1467,7 @@ class OrdersController extends Controller
                   'isRemoteEnabled' => true // still ok if you want remote images
             ]);
 
-
-
-
-           return $pdf->download('printer_invoice-' . rand(00001, 99999) . '.pdf');
-
-
-            
-
+           return $pdf->stream('printer_invoice-' . rand(00001, 99999) . '.pdf');
         } catch(\Exception $e){
               return response()->json([
                'status' => 'failed',
@@ -1465,4 +1477,37 @@ class OrdersController extends Controller
         }
     }
 
+     public function downloadOrderInvoice($orderId)
+    {
+        try{
+           
+            $order = Order::with('restaurant', 'restaurant.stateInfo')->where('id', $orderId)->first();
+            if (is_null($order)) {
+                 return response()->json([
+                   'status' => 'failed',
+                   'message' => "No order details found" 
+                 ], 400); 
+            }
+
+            $orderDetailsResults = OrderDetail::with('food')->where('order_id', $order->id)->get();
+
+            $logoPath = public_path('assets/img/Logo.png'); // Correct absolute server path
+
+            $logoBase64 = base64_encode(file_get_contents($logoPath));
+             
+            $pdf = Pdf::loadView('pdf.order_invoice', compact('order', 'logoBase64', 'orderDetailsResults'))
+              ->setOptions([
+                  'defaultFont' => 'sans-serif',
+                  'isRemoteEnabled' => true // still ok if you want remote images
+            ]);
+
+           return $pdf->stream('printer_invoice-' . rand(00001, 99999) . '.pdf');
+        } catch(\Exception $e){
+              return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getLine()."-".$e->getMessage()
+             ], 500);
+        }
+    }
 }
