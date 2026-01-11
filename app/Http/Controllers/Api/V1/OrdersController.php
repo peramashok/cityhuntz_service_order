@@ -1004,7 +1004,7 @@ class OrdersController extends Controller
      
 
     /**
-     * track orders list for ve
+     * track orders list for customer after order place
      * @param Illuminate\Http\Request
      * @return Illuminate\Http\Resp
      */
