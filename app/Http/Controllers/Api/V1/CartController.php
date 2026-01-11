@@ -17,8 +17,8 @@ use App\Models\PaymentSetting;
 use App\Models\Zone;
 use App\Models\Coupon;
 use App\Models\Restaurant;
-
 use MatanYadaev\EloquentSpatial\Objects\Point;
+use Illuminate\Support\Facades\DB;
 class CartController extends Controller
 {
     public function get_carts(Request $request)
@@ -112,28 +112,67 @@ class CartController extends Controller
 
                 'quantity' => 'required|integer|min:1',
 
-                // Addons
-                'addons' => 'nullable|array',
-                'addons.*.add_on_id'  => 'required|exists:add_ons,id',
-                'addons.*.add_on_qty' => 'required|integer|min:1',
-
-                // Variations
-                'variations' => 'nullable|array',
-                'variations.*.variation_id'        => 'required|exists:variations,id',
-                'variations.*.variation_option_id' => 'required|exists:variation_options,id',
-                'variations.*.variation_qty'       => 'required|integer|min:1',
-
-                // Restaurant
+                 // Restaurant
                 'restaurant_id' => [
                     'required',
                     Rule::exists('restaurants', 'id')->whereNull('deleted_at'),
                 ],
+
+                // Addons
+                'addons' => 'nullable|array',
+                // 'addons.*.add_on_id'  => 'required|exists:add_ons,id',
+
+                'addons.*.add_on_id' => [
+                    'required_with:addons',
+                    Rule::exists('add_ons', 'id')
+                        ->where('restaurant_id', request('restaurant_id')),
+                ],
+
+                'addons.*.add_on_qty' => 'required|integer|min:1',
+
+                // Variations
+                'variations' => 'nullable|array',
+                //'variations.*.variation_id'        => 'required|exists:variations,id',
+                 //'variations.*.variation_option_id' => 'required|exists:variation_options,id',
+                 'variations.*.variation_id' => [
+                    'required_with:variations',
+                    Rule::exists('variations', 'id')
+                        ->where('food_id', request('item_id')),
+                ],
+
+                'variations.*.variation_option_id' => [
+                    'required_with:variations',
+                    Rule::exists('variation_options', 'id'),
+                ],
+                'variations.*.variation_qty'       => 'required|integer|min:1',
+
+               
             ]);
 
             if ($validator->fails()) {
                 return response()->json(['status'=>'failed','errors' => Helpers::error_processor($validator)], 403);
             }
 
+            $variationArray = $request->input('variations', []);
+            $foodId = $request->input('item_id');
+            foreach ($variationArray as $index => $item) {
+
+                $exists = \DB::table('variation_options')
+                    ->join('variations', 'variations.id', '=', 'variation_options.variation_id')
+                    ->where('variation_options.id', $item['variation_option_id'])
+                    ->where('variation_options.variation_id', $item['variation_id'])
+                    ->where('variations.food_id', $foodId)
+                    ->exists();
+
+                if (! $exists) {
+                    return response()->json([
+                        'status' => false,
+                        'message' =>
+                            "Variation option does not belong to variation (index {$index})"
+                    ], 422);
+                }
+            }
+             
             $foodData=Food::where('id', $request->item_id)->where('restaurant_id', $request->restaurant_id)->first();
 
             if(is_null($foodData)){
