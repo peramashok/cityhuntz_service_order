@@ -155,21 +155,23 @@ class CartController extends Controller
 
             $variationArray = $request->input('variations', []);
             $foodId = $request->input('item_id');
-            foreach ($variationArray as $index => $item) {
+            if(count($variationArray)>0){
+                foreach ($variationArray as $index => $item) {
 
-                $exists = \DB::table('variation_options')
-                    ->join('variations', 'variations.id', '=', 'variation_options.variation_id')
-                    ->where('variation_options.id', $item['variation_option_id'])
-                    ->where('variation_options.variation_id', $item['variation_id'])
-                    ->where('variations.food_id', $foodId)
-                    ->exists();
+                    $exists = \DB::table('variation_options')
+                        ->join('variations', 'variations.id', '=', 'variation_options.variation_id')
+                        ->where('variation_options.id', $item['variation_option_id'])
+                        ->where('variation_options.variation_id', $item['variation_id'])
+                        ->where('variations.food_id', $foodId)
+                        ->exists();
 
-                if (! $exists) {
-                    return response()->json([
-                        'status' => false,
-                        'message' =>
-                            "Variation option does not belong to variation (index {$index})"
-                    ], 422);
+                    if (! $exists) {
+                        return response()->json([
+                            'status' => false,
+                            'message' =>
+                                "Variation option does not belong to variation (index {$index})"
+                        ], 422);
+                    }
                 }
             }
              
