@@ -1010,22 +1010,23 @@ class Helpers
     {
         $result = [];
         $variation_price = 0;
-
+ 
         foreach($variations as $variation){
             
             foreach($product_variations as  $product_variation){
                 if(isset($product_variation['values'])){ 
                     foreach($product_variation['values'] as $key=> $option){
                         if(in_array($option['option_id'], $variation)){
+                            $option['quantity']=$variation['variation_qty'];
                             $result[] = $option;
-                            $variation_price += $option['optionPrice'];
+                            $variation_price += $option['optionPrice']*$variation['variation_qty'];
                         }
                     }
                 }
             }
         }
-
-        return ['price'=>$variation_price,'variations'=>array_values($result)];
+ 
+        return ['price'=>round($variation_price,2),'variations'=>array_values($result)];
     }
 
     public static function get_varientold(array $product_variations, array $variations)

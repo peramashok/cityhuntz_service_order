@@ -705,6 +705,8 @@ class OrdersController extends Controller
                 $selectedVariations=$c->variations ?? [];
                 foreach($selectedVariations as $variationOption){
                     $variation_options[]=$variationOption['variation_option_id'];
+
+                    $variation_options_qty[$variationOption['variation_option_id']]=$variationOption['variation_qty'];
                 }
               
                 if($code == 'food'){
@@ -730,7 +732,7 @@ class OrdersController extends Controller
 
                 $product->tax = $restaurant->tax;
 
-                $product = Helpers::product_data_formatting($product, false, false, app()->getLocale());
+                $product =Helpers::product_data_formatting($product, false, false, app()->getLocale());
 
                 $or_d = [
                     'food_id' => $food_id ??  null,
