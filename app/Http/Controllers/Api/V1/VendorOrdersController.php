@@ -19,6 +19,7 @@ use App\Models\Order;
 use App\Models\SubscriptionTransaction;
 use App\CentralLogics\OrderLogic;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Http;
 
 class VendorOrdersController extends Controller
 {
@@ -463,6 +464,20 @@ class VendorOrdersController extends Controller
             $order[$request['status']] = now();
             $order->save();
            // Helpers::send_order_notification($order);
+
+            try{
+                $response = Http::post(
+                    env('NOTIFICATION_URL') . 'notifications/update_status',
+                    [
+                        'order_id' => $order->id 
+                    ]
+                );
+            }catch(\Exception $ex){
+                \Log::error('Notification API failed', [
+                    'message' => $ex->getMessage(),
+                    'order_id' => $order->id,
+                ]); 
+            }
 
             return response()->json(['status'=>'success','message' => 'Status updated'], 200);
 

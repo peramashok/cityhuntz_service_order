@@ -465,11 +465,24 @@ class DeliverymanOrdersController extends Controller
             $order->save();
 
             // send notifications
-            // try {
-            //     Helpers::send_order_notification($order);
-            // } catch (\Exception $th) {
-            //     info($th->getMessage());
-            // }
+            try{
+                $response = Http::post(
+                    env('NOTIFICATION_URL') . 'notifications/update_status',
+                    [
+                        'order_id' => $singleOrder->id,
+                        'user_type' => 'deliveryman',
+                        'status'=>$request['status'],
+                        'status_changed_by'=>auth()->user()->id
+                    ]
+                );
+            }catch(\Exception $ex){
+                  \Log::error('Notification API failed', [
+                        'message' => $ex->getMessage(),
+                        'order_id' => $singleOrder->id,
+                    ]); 
+
+               // echo $ex->getMessage();
+            }
 
             OrderLogic::update_subscription_log($order);
             return response()->json([
