@@ -822,18 +822,24 @@ class Helpers
         $selected_data = array_combine($selected_addons, $selected_addon_quantity);
 
         $selected_data = $selected_addons;
+
         foreach ($data_addons as $addon) {
             $addon_id = $addon['id'];
+
             if (in_array($addon_id, $selected_addons)) {
                 $addon['isChecked'] = true;
-                $addon['quantity'] = $selected_data[$addon_id];
+                $index = array_search($addon_id, $selected_addons, true);
+
+                // if ($index !== false) {
+                //     // $index = 2
+                // }
+                $addon['quantity'] = $selected_addon_quantity[$index];
             } else {
                 $addon['isChecked'] = false;
                 $addon['quantity'] = 0;
             }
         }
-
-
+ 
         $data['addons'] = $data_addons;
 
         if ($data->title) {
