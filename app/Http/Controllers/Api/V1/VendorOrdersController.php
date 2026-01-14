@@ -20,6 +20,9 @@ use App\Models\SubscriptionTransaction;
 use App\CentralLogics\OrderLogic;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
+use App\Models\WalletTransaction;
+use App\Models\WithdrawalMethod;
+use App\Models\OrderPayment;
 
 class VendorOrdersController extends Controller
 {
@@ -254,9 +257,9 @@ class VendorOrdersController extends Controller
                 'order_proof' =>'nullable|array|max:5',
             ]);
             $request->otp="123456";
-            $validator->sometimes('otp', 'required', function ($request) {
-                return (Config::get('order_delivery_verification')==1 && $request['status']=='delivered');
-            });
+            // $validator->sometimes('otp', 'required', function ($request) {
+            //     return (Config::get('order_delivery_verification')==1 && $request['status']=='delivered');
+            // });
 
             if ($validator->fails()) {
                 return response()->json(['errors' => Helpers::error_processor($validator)], 403);
@@ -430,6 +433,21 @@ class VendorOrdersController extends Controller
                     $images = $img_names;
                 }
                 $order->order_proof = json_encode($images);
+
+                //order amount store into wallet
+ 
+                $tranArray=array(
+                    "user_id"=>$vendor->id,
+                    "transaction_id"=>"R".uniqid('', true),
+                    "credit"=>round($order->order_amount-$order->processing_charges,2),
+                    "transaction_type"=>'orders',
+                    "reference"=>$vendor->phone,
+                    "order_id"=>$order->id,
+                    "restaturant_id"=>$order->restaurant_id,
+                    "created_at"=>now()
+                );
+
+                WalletTransaction::create($tranArray);
             }
 
 
