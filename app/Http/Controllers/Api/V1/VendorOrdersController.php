@@ -448,6 +448,18 @@ class VendorOrdersController extends Controller
                 );
 
                 WalletTransaction::create($tranArray);
+
+                // Send notification for adding money to vendor wallet
+                try {
+                    $response = Http::post(
+                        env('NOTIFICATION_URL') . 'notifications/order_amount_update',
+                        [
+                            'order_id' => $order->id 
+                        ]
+                    );
+                } catch (\Exception $th) {
+                    info($th->getMessage());
+                }
             }
 
 
