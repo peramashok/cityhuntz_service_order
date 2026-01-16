@@ -494,7 +494,7 @@ class VendorOrdersController extends Controller
             $order[$request['status']] = now();
             $order->save();
            // Helpers::send_order_notification($order);
-
+            
             try{
                 $response = Http::post(
                     env('NOTIFICATION_URL') . 'notifications/update_status',
