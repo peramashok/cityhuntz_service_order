@@ -483,6 +483,20 @@ class VendorOrdersController extends Controller
                 $order->cancellation_reason=$request->reason;
                 $order->canceled_by='restaurant';
 
+
+                try {
+                    $response = Http::post(
+                        env('PAYMENT_URL') . 'refunds/order_refund',
+                        [
+                            'order_id' => $order->id,
+                            'amount'=>$order->order_amount,
+                            'reason'=>$request->reason
+                        ]
+                    );
+                } catch (\Exception $th) {
+                    Log::error($ex->getMessage());
+                }
+
                 Helpers::decreaseSellCount(order_details:$order->details);
 
             }
@@ -499,7 +513,9 @@ class VendorOrdersController extends Controller
                 $response = Http::post(
                     env('NOTIFICATION_URL') . 'notifications/update_status',
                     [
-                        'order_id' => $order->id 
+                        'order_id' => $order->id,
+                        'user_type'=>'vendor',
+                        'status'=>$request['status']
                     ]
                 );
             }catch(\Exception $ex){

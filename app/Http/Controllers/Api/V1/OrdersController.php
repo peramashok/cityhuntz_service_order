@@ -236,6 +236,37 @@ class OrdersController extends Controller
             $order->canceled_by = 'customer';
             $order->save();
 
+
+             try {
+                $response = Http::post(
+                    env('PAYMENT_URL') . 'refunds/order_refund',
+                    [
+                        'order_id' => $order->id,
+                        'amount'=>$order->order_amount,
+                        'reason'=>$request->reason
+                    ]
+                );
+            } catch (\Exception $th) {
+                Log::error($ex->getMessage());
+            }
+
+             try{
+                $response = Http::post(
+                    env('NOTIFICATION_URL') . 'notifications/update_status',
+                    [
+                        'order_id' => $order->id,
+                        'user_type'=>'customer',
+                        'status'=>'canceled'
+                    ]
+                );
+            }catch(\Exception $ex){
+                \Log::error('Notification API failed', [
+                    'message' => $ex->getMessage(),
+                    'order_id' => $order->id,
+                ]); 
+            }
+
+
             Helpers::decreaseSellCount(order_details:$order->details);
             //notification need to do
            // Helpers::send_order_notification($order);
@@ -1491,7 +1522,7 @@ class OrdersController extends Controller
                  ], 400); 
             }
 
-            $orderDetailsResults = OrderDetail::with('food')->where('order_id', $order->id)->get();
+            $orderDetailsResults = OrderDetail::where('order_id', $order->id)->get();
 
             $logoPath = public_path('assets/img/Logo.png'); // Correct absolute server path
 

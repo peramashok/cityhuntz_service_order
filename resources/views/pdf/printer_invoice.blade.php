@@ -342,16 +342,11 @@
                     @php 
                        $food_cost=$food_cost+$foodCost; 
                        $totalFoodCost=$totalFoodCost+$foodCost;
-
-                        
-
                     @endphp
                     @endforeach
                      $discountAmount = $singleOrder->discount_amount ?? 0;
                       $processing_charges=$processing_charges+$singleOrder->processing_charges;
                     @php  
-                    
-
                 @endphp
                 </tbody>
             </table>

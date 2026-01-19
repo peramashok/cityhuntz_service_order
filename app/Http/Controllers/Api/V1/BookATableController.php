@@ -637,22 +637,12 @@ class BookATableController extends Controller
             }
 
             $restaurant=$order->restaurant;
-            $data =0;
-            if ($restaurant?->restaurant_model == 'subscription'){
-            // $data =1;
-            }
- 
-            // if($request['status'] =="confirmed" && !$data)
-            // {
-
-
-            //     return response()->json([
-            //         'status'=>'failed',
-            //         'code' => 'order-confirmation-model', 
-            //         'status'=>$request['status'] =="confirmed".!$data,
-            //         'message' => translate('messages.order_confirmation_warning')
-            //     ], 403);
+            // $data =0;
+            // if ($restaurant?->restaurant_model == 'subscription'){
+            //   $data =1;
             // }
+ 
+            
 
             $order->order_status = $request['status'];
             if($request->status=='cancelled'){
@@ -660,6 +650,22 @@ class BookATableController extends Controller
             }
             $order[$request['status']] = now();
             $order->save();
+
+            if($request->status=='closed'){
+                $tranArray=array(
+                    "user_id"=>$vendor->id,
+                    "transaction_id"=>"R".uniqid('', true),
+                    "credit"=>round($order->total_amount-$order->processing_charges,2),
+                    "transaction_type"=>'booking',
+                    "reference"=>$vendor->phone,
+                    "order_id"=>$order->id,
+                    "restaturant_id"=>$order->restaurant_id,
+                    "created_at"=>now()
+                );
+
+                WalletTransaction::create($tranArray);
+            }
+            
            // Helpers::send_order_notification($order);
 
             return response()->json(['status'=>'success','message' => 'You have successfully updated booking status into '. $request->status], 200);
