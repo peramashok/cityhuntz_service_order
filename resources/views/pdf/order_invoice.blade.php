@@ -110,7 +110,7 @@ footer {
         </div>
         <div class="qr-box" style="width: 400px;float: left;">
             <img src="https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=INV-123" style="margin:0; padding:0; display:block;"><br>
-            <div class="invoice-no" style="margin-top:10px;">Invoice Number #{{$invoceData->invoice_no}}</div>
+            <div class="invoice-no" style="margin-top:10px;">Invoice Number #{{$order->order_no}}</div>
         </div>
     </div>
  <div style="clear: both;">&nbsp;</div>
@@ -119,20 +119,21 @@ footer {
      <div style="display: flex; width: 800px; font-size: 14px; line-height: 20px; margin-bottom: 10px;">
         <!-- LEFT: ORDER DETAILS -->
         <div style="width: 300px;float: left;">
-            <p style="margin: 0 0 4px 0;"><strong>Invoice ID:</strong> {{$invoceData->invoice_no}}</p>
-            <p style="margin: 0 0 4px 0;"><strong>Payment Status:</strong> {{$invoceData->payment_status}}</p>
-            <p style="margin: 0;"><strong>Invoice Date:</strong> {{date("Y-m-d h:i A", strtotime($invoceData->created_at))}}</p>
+            <p style="margin: 0 0 4px 0;"><strong>Invoice ID:</strong> {{$order->order_no}}</p>
+            <p style="margin: 0 0 4px 0;"><strong>Payment Status:</strong> {{$order->payment_status}}</p>
+            <p style="margin: 0;"><strong>Invoice Date:</strong> {{date("Y-m-d h:i A", strtotime($order->created_at))}}</p>
         </div>
 
         <!-- RIGHT: BILLING ADDRESS with ZERO GAP -->
         <div style="width: 500px; text-align: left; margin-left: 0;float: left;">
             <p style="margin: 0 0 4px 0;"><strong>Billing Address</strong></p>
-            <p style="margin: 0;">{{$user->address1}},</p>
-            @if($user->address2!='')
-            <p style="margin: 0;">{{$user->address2}},</p>
-            @endif
-            <p style="margin: 0;">{{$user->city}}, {{$user->stateInfo->state_name}}, {{$invoceData->restaurant_id=='' ? $user->countryInfo?->name : 'US'}}-{{$user->zipcode}}</p>
-            <p style="margin: 0;">Phone: {{$user->phone}}</p>
+
+            @php
+            $contact=json_decode($order->delivery_address, true);
+            @endphp
+            <p style="margin: 0;">{{ $contact['contact_person_name']  }},</p>
+            <p style="margin: 0;">{{ $contact['address']  }},</p>
+            <p style="margin: 0;">{{ $contact['contact_person_number']  }},</p>
         </div>
     </div>
     <div style="clear: both;">&nbsp;</div>
@@ -144,17 +145,27 @@ footer {
             <th>Gross Amount $</th>
         </tr>
         @php 
-            $totalFoodCost=0; 
+            $totalFoodCost=0; $food_cost=0;
             $i=1;
         @endphp
         @foreach($orderDetailsResults as $singleOrder)
          @php 
             $foodCost=$singleOrder->price*$singleOrder->quantity;  
+            $food=json_decode($singleOrder->food_details, true);
 
+            $addOns=$singleOrder->add_ons;
          @endphp
         <tr>
-            <td>{{$i}}</td><td>{{$singleOrder->food_details['name']}}</td><td>{{$singleOrder->quantity}}</td> <td>{{number_format($singleOrder->food_details['price']*$singleOrder->quantity, 2)}}</td> 
+             <td>{{$i}}</td><td>{{$food['name']}}</td><td>{{$singleOrder->quantity}}</td> <td>{{number_format($food['price']*$singleOrder->quantity, 2)}}</td> 
         </tr>
+            @if(count($addOns)>0)
+                @foreach ($addOns as $item)
+                    <p>
+                        {{ $item['name'] }} -
+                        {{ $item['quantity'] }} × ${{ $item['price'] }}
+                    </p>
+                @endforeach
+            @endif
             @php 
                $food_cost=$food_cost+$foodCost; 
                
@@ -176,7 +187,7 @@ footer {
             <td colspan="3" style="text-align:right;">Tax</td><td>$ {{number_format($order->total_tax_amount,2)}}</td>
         </tr>
          <tr class="grand-total-row">
-            <td colspan="3" style="text-align:right;">Discount</td><td>-$ {{$order->coupon_discount_amount-$order->restaurant_discount_amount}}</td>
+            <td colspan="3" style="text-align:right;">Discount</td><td>-$ {{number_format($order->coupon_discount_amount-$order->restaurant_discount_amount,2)}}</td>
         </tr>
         <tr class="grand-total-row">
             <td colspan="3" style="text-align:right;">Grand Total</td><td>$ {{number_format($order->order_amount,2)}}</td>

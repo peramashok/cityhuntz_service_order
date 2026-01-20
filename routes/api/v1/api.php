@@ -131,6 +131,7 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
              Route::get('book_now', 'book_now');
              Route::get('get_booked_details/{id}', 'getBookedTableDetails');
              Route::get('my_bookings', 'getAllCustomerBookings');
+             Route::post('cancel', 'cancel_booking');
         });
 
         Route::prefix('cart')->controller(CartController::class)->group(function () {

@@ -36,6 +36,9 @@ use App\Models\Category;
 use Carbon\Carbon;
 use App\Models\PaymentSetting;
 
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
 class OrdersController extends Controller
 {
     /**
@@ -1127,7 +1130,7 @@ class OrdersController extends Controller
             $user_id = $request->user ? $request->user->id : $request['guest_id'];
      
             $paginator = Order::with(['restaurant', 'delivery_man.rating'])->withCount('details')->where(['user_id' => $user_id])->
-            whereIn('order_status', ['delivered','canceled','refund_requested','refund_request_canceled','refunded','failed', 'pending'])->Notpos()
+            whereIn('order_status', ['accepted','pending','confirmed', 'processing', 'handover','picked_up','canceled','failed'])->Notpos()
             ->whereNull('subscription_id')
             ->when(!isset($request->user) , function($query){
                 $query->where('is_guest' , 1);
@@ -1534,7 +1537,7 @@ class OrdersController extends Controller
                   'isRemoteEnabled' => true // still ok if you want remote images
             ]);
 
-           return $pdf->stream('printer_invoice-' . rand(00001, 99999) . '.pdf');
+           return $pdf->stream('order_invoice-' . rand(00001, 99999) . '.pdf');
         } catch(\Exception $e){
               return response()->json([
                'status' => 'failed',
