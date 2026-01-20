@@ -1537,7 +1537,7 @@ class OrdersController extends Controller
                   'isRemoteEnabled' => true // still ok if you want remote images
             ]);
 
-           return $pdf->stream('order_invoice-' . rand(00001, 99999) . '.pdf');
+           return $pdf->download('order_invoice-' . rand(00001, 99999) . '.pdf');
         } catch(\Exception $e){
               return response()->json([
                'status' => 'failed',
