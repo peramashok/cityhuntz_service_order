@@ -34,6 +34,7 @@ use App\CentralLogics\CouponLogic;
 use App\Models\Currency;
 use App\Models\VisitorLog;
 use App\Models\CashBack;
+use App\Models\NotificationMessage;
 
 class Helpers
 { 
@@ -672,6 +673,56 @@ class Helpers
             if(is_array($variation_options) && (data_get($variation_options,0) != ''|| data_get($variation_options,0)  != null)) {
                 $variation_options= VariationOption::whereIn('id', $variation_options)->get();
                 foreach($variation_options as $variation_option){
+                    if($variation_option->stock_type !== 'unlimited'){
+                        $availableStock=$variation_option->total_stock  - $variation_option->sell_count;
+                        if(is_array($old_selected_variations) && data_get($old_selected_variations, $variation_option->id) ){
+                            $availableStock= $availableStock + data_get($old_selected_variations, $variation_option->id);
+                        }
+                        if($availableStock <= 0 || $availableStock < $quantity){
+                            return ['out_of_stock' => $availableStock > 0 ? translate('Only') .' '.$availableStock . " ". translate('Quantity_is_abailable_for').' '.$product?->name.' \'s ' . $variation_option->option_name .' ' . translate('Variation_!!!') : $product?->name.' \'s ' . $variation_option->option_name .' ' . translate('Variation_is_out_of_stock_!!!') ,
+                                    'id'=>$variation_option->id,
+                                    'current_stock' =>  $availableStock > 0 ?  $availableStock : 0,
+                                    ];
+                        }
+                        if($incrementCount == true){
+                            $variation_option->increment('sell_count',$quantity);
+                        }
+                    }
+                }
+            }
+        }
+
+        if(is_array($add_on_ids) && count($add_on_ids) > 0) {
+            $addonsArray=array();
+            $addonQtysArray=array();
+            foreach($add_on_ids as $addon){
+                $addonsArray[]=$addon['add_on_id'];
+                $addonQtysArray[]=$addon['add_on_qty'];  
+            }
+            return  Helpers::calculate_addon_price(addons: AddOn::whereIn('id',$addonsArray)->get(), add_on_qtys: $addonQtysArray ,incrementCount:$incrementCount ,old_selected_addons:$old_selected_addons);
+        }
+        return null;
+    }
+
+
+   public static function addonAndVariationStockCheckOld($product, $quantity=1, $add_on_qtys=1, $variation_options=null,$add_on_ids= null ,$incrementCount = false ,$old_selected_variations=[] ,$old_selected_without_variation = 0,$old_selected_addons=[]){
+
+        if($product?->stock_type && $product?->stock_type !== 'unlimited'){
+            $availableMainStock=$product->item_stock + $old_selected_without_variation ;
+            if(  $availableMainStock <= 0 || $availableMainStock < $quantity  ){
+                return [
+                    'out_of_stock' =>$availableMainStock > 0 ? translate('Only') .' '.$availableMainStock . " ". translate('Quantity_is_abailable_for').' '.$product?->name : $product?->name.' ' . translate('is_out_of_stock_!!!') ,
+                    'id'=>$product->id,
+                'current_stock' =>  $availableMainStock > 0 ?  $availableMainStock : 0,
+                ];
+            }
+            if($product?->stock_type && $incrementCount == true){
+                $product->increment('sell_count',$quantity);
+            }
+
+            if(is_array($variation_options) && (data_get($variation_options,0) != ''|| data_get($variation_options,0)  != null)) {
+                $variation_options= VariationOption::whereIn('id', $variation_options)->get();
+                foreach($variation_options as $variation_option){
                         if($variation_option->stock_type !== 'unlimited'){
                             $availableStock=$variation_option->total_stock  - $variation_option->sell_count;
                             if(is_array($old_selected_variations) && data_get($old_selected_variations, $variation_option->id) ){
@@ -741,7 +792,7 @@ class Helpers
     }
 
 
-   public static function cart_product_data_formatting($data, $selected_variation=[], $selected_variation_options=[], $selected_addons=[], $selected_addon_quantity=[],$trans = false, $local = 'en')
+   public static function cart_product_data_formatting($data, $selected_variation=[], $selected_variation_options=[], $selectedAddons=[], $selected_addon_quantity=[],$trans = false, $local = 'en')
     {
 
         $variations = [];
@@ -757,23 +808,38 @@ class Helpers
         $data_addons = self::addon_data_formatting(AddOn::whereIn('id', $add_ons)->active()->get(), true, $trans, $local);
 
          // FIX: ensure both variables are arrays
+
+        $selected_addons=array();
+        $selected_addon_quantity=array();
+        foreach($selectedAddons as $addon){
+            $selected_addons[]=$addon['add_on_id'];
+            $selected_addon_quantity[]=$addon['add_on_qty'];  
+        }
+
         $selected_addons = is_array($selected_addons) ? $selected_addons : [];
-
-
         $selected_addon_quantity = is_array($selected_addon_quantity) ? $selected_addon_quantity : [];
-        $selected_variation = is_array($selected_variation) ? $selected_variation : [];
-
+        
         $selected_data = array_combine($selected_addons, $selected_addon_quantity);
+
+        $selected_data = $selected_addons;
+
         foreach ($data_addons as $addon) {
             $addon_id = $addon['id'];
+
             if (in_array($addon_id, $selected_addons)) {
                 $addon['isChecked'] = true;
-                $addon['quantity'] = $selected_data[$addon_id];
+                $index = array_search($addon_id, $selected_addons, true);
+
+                // if ($index !== false) {
+                //     // $index = 2
+                // }
+                $addon['quantity'] = $selected_addon_quantity[$index];
             } else {
                 $addon['isChecked'] = false;
                 $addon['quantity'] = 0;
             }
         }
+ 
         $data['addons'] = $data_addons;
 
         if ($data->title) {
@@ -827,6 +893,15 @@ class Helpers
         //     }
         // }
 
+        $selected_variation = is_array($selected_variation) ? $selected_variation : [];
+
+        $selected_variation_options=array();
+       
+        foreach($selected_variation as $variation){
+            $selected_variation_options[]=$variation['variation_option_id'];
+        
+        }
+
         $variation_options = $selected_variation_options;
 
         
@@ -853,7 +928,6 @@ class Helpers
                 }
             }
         }
-       
         $data['variations'] = $data_variation;
         $data['restaurant_name'] = $data->restaurant->name;
         $data['restaurant_status'] = (int) $data->restaurant->status;
@@ -942,6 +1016,29 @@ class Helpers
     {
         $result = [];
         $variation_price = 0;
+ 
+        foreach($variations as $variation){
+            
+            foreach($product_variations as  $product_variation){
+                if(isset($product_variation['values'])){ 
+                    foreach($product_variation['values'] as $key=> $option){
+                        if(in_array($option['option_id'], $variation)){
+                            $option['quantity']=$variation['variation_qty'];
+                            $result[] = $option;
+                            $variation_price += $option['optionPrice']*$variation['variation_qty'];
+                        }
+                    }
+                }
+            }
+        }
+ 
+        return ['price'=>round($variation_price,2),'variations'=>array_values($result)];
+    }
+
+    public static function get_varientold(array $product_variations, array $variations)
+    {
+        $result = [];
+        $variation_price = 0;
 
         foreach($variations as $k=> $variation){
             foreach($product_variations as  $product_variation){
@@ -960,7 +1057,6 @@ class Helpers
 
         return ['price'=>$variation_price,'variations'=>array_values($result)];
       }
-
  public static function product_data_formatting($data, $multi_data = false, $trans = false, $local = 'en')
     {
         $storage = [];
@@ -1532,4 +1628,120 @@ class Helpers
 
         return $currency_symbol_position == 'right' ? number_format($n, config('round_up_to_digit')).$suffix . ' ' . self::currency_symbol() : self::currency_symbol() . ' ' . number_format($n, config('round_up_to_digit')).$suffix;
     }
+
+
+    public static function get_zones_name($zones){
+        if(is_array($zones)){
+            $data = Zone::whereIn('id',$zones)->pluck('name')->toArray();
+        }else{
+            $data = Zone::where('id',$zones)->pluck('name')->toArray();
+        }
+        $data = implode(', ', $data);
+        return $data;
+    }
+
+
+      public static function text_variable_data_format($value,$user_name=null,$restaurant_name=null,$delivery_man_name=null,$transaction_id=null,$order_id=null,$add_id= null)
+    {
+        $data = $value;
+        if ($value) {
+            if($user_name){
+                $data =  str_replace("{userName}", $user_name, $data);
+            }
+
+            if($restaurant_name){
+                $data =  str_replace("{restaurantName}", $restaurant_name, $data);
+            }
+
+            if($delivery_man_name){
+                $data =  str_replace("{deliveryManName}", $delivery_man_name, $data);
+            }
+
+            if($transaction_id){
+                $data =  str_replace("{transactionId}", $transaction_id, $data);
+            }
+
+            if($order_id){
+                $data =  str_replace("{orderId}", $order_id, $data);
+            }
+            if($add_id){
+                $data =  str_replace("{advertisementId}", $add_id, $data);
+            }
+        }
+
+        return $data;
+    }
+
+
+
+
+
+    public static function order_status_update_message($status, $lang='default')
+    {
+        if ($status == 'pending') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_pending_message')->first();
+        } elseif ($status == 'confirmed') {
+            $data =  NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_confirmation_msg')->first();
+        } elseif ($status == 'processing') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_processing_message')->first();
+        } elseif ($status == 'picked_up') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'out_for_delivery_message')->first();
+        } elseif ($status == 'handover') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_handover_message')->first();
+        } elseif ($status == 'delivered') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_delivered_message')->first();
+        } elseif ($status == 'delivery_boy_delivered') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'delivery_boy_delivered_message')->first();
+        } elseif ($status == 'accepted') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'delivery_boy_assign_message')->first();
+        } elseif ($status == 'canceled') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_cancled_message')->first();
+        } elseif ($status == 'refunded') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'order_refunded_message')->first();
+        } elseif ($status == 'refund_request_canceled') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'refund_request_canceled')->first();
+        } elseif ($status == 'offline_verified') {
+        $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+            $query->where('locale', $lang);
+        }])->where('key', 'offline_order_accept_message')->first();
+        } elseif ($status == 'offline_denied') {
+            $data = NotificationMessage::with(['translations'=>function($query)use($lang){
+                $query->where('locale', $lang);
+            }])->where('key', 'offline_order_deny_message')->first();
+        } else {
+            $data = ["status"=>"0","message"=>"",'translations'=>[]];
+        }
+
+        if($data){
+            if ($data['status'] == 0) {
+                return 0;
+            }
+            return $data['message'];
+        }else{
+            return false;
+        }
+    }
+
 }

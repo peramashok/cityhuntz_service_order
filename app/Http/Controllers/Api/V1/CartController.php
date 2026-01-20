@@ -14,7 +14,11 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use App\Models\PaymentSetting;
-
+use App\Models\Zone;
+use App\Models\Coupon;
+use App\Models\Restaurant;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use Illuminate\Support\Facades\DB;
 class CartController extends Controller
 {
     public function get_carts(Request $request)
@@ -22,8 +26,10 @@ class CartController extends Controller
         try{
             $validator = Validator::make($request->all(), [
                 'guest_id' => $request->user ? 'nullable' : 'required',
-                // 'latitude'=>'required',
-                // 'longitude'=>'required'
+                'latitude'=>'required',
+                'longitude'=>'required',
+                'coupon_code' => 'nullable|string',
+                'order_type' => 'required|in:take_away,dine_in,delivery',
             ]);
 
             if ($validator->fails()) {
@@ -33,8 +39,14 @@ class CartController extends Controller
             $is_guest = $request->user ? 0 : 1;
 
             $orderType='';
+            $restaurantIds=array();
             $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
-            ->map(function ($data) {
+            ->map(function ($data) use (&$restaurantIds) {
+
+                if (!in_array($data->restaurant_id, $restaurantIds)) {
+                    $restaurantIds[] = $data->restaurant_id;
+                }
+
                 $data->add_on_ids = json_decode($data->add_on_ids,true) ?? [];
                 $data->add_on_qtys = json_decode($data->add_on_qtys,true) ?? [];
                 $data->variations = json_decode($data->variations,true) ?? [];
@@ -43,10 +55,12 @@ class CartController extends Controller
                 $data->add_on_qtys, false, app()->getLocale());
                 return $data;
             });
-
             $paymentSettings=PaymentSetting::where('id', 1)->first();
 
-            return response()->json(['status'=>'success','data'=>$carts, 'payment_settings'=>$paymentSettings], 200);
+            $othercharges=$this->getCharages($restaurantIds, $request);
+
+
+            return response()->json(['status'=>'success','data'=>$carts, 'other_charges'=>$othercharges, 'payment_settings'=>$paymentSettings], 200);
         } catch(\Extension $e){
              return response()->json([
                    'status' => 'failed',
@@ -77,38 +91,95 @@ class CartController extends Controller
    public function add_to_cart(Request $request)
     {
         try{
+             
             $validator = Validator::make($request->all(), [
+
+                // Order info
                 'order_type' => 'required|in:take_away,dine_in,delivery',
+
+                // Guest / user
                 'guest_id' => $request->user ? 'nullable' : 'required',
+
+                // Item
                 'item_id' => [
-                  'required',
-                   Rule::exists('food', 'id')->whereNull('deleted_at'),
-                 ],
+                    'required',
+                    Rule::exists('food', 'id')->whereNull('deleted_at'),
+                ],
 
                 'model' => 'required|string|in:Food,ItemCampaign',
-                'price' => 'required|numeric',
-                'variation_options' => 'nullable|array',
-                'add_on_ids' => 'nullable|array',
-                'add_on_qtys'=>'nullable|array',
-                'variations'=>'nullable|array',
-                'quantity' => 'required|integer|min:0',
+
+                'price' => 'required|numeric|min:0',
+
+                'quantity' => 'required|integer|min:1',
+
+                 // Restaurant
                 'restaurant_id' => [
-                      'required',
-                       Rule::exists('restaurants', 'id')->whereNull('deleted_at'),
-                ]
+                    'required',
+                    Rule::exists('restaurants', 'id')->whereNull('deleted_at'),
+                ],
+
+                // Addons
+                'addons' => 'nullable|array',
+                // 'addons.*.add_on_id'  => 'required|exists:add_ons,id',
+
+                'addons.*.add_on_id' => [
+                    'required_with:addons',
+                    Rule::exists('add_ons', 'id')
+                        ->where('restaurant_id', request('restaurant_id')),
+                ],
+
+                'addons.*.add_on_qty' => 'required|integer|min:1',
+
+                // Variations
+                'variations' => 'nullable|array',
+                //'variations.*.variation_id'        => 'required|exists:variations,id',
+                 //'variations.*.variation_option_id' => 'required|exists:variation_options,id',
+                 'variations.*.variation_id' => [
+                    'required_with:variations',
+                    Rule::exists('variations', 'id')
+                        ->where('food_id', request('item_id')),
+                ],
+
+                'variations.*.variation_option_id' => [
+                    'required_with:variations',
+                    Rule::exists('variation_options', 'id'),
+                ],
+                'variations.*.variation_qty'       => 'required|integer|min:1',
+
+               
             ]);
 
             if ($validator->fails()) {
                 return response()->json(['status'=>'failed','errors' => Helpers::error_processor($validator)], 403);
             }
 
+            $variationArray = $request->input('variations', []);
+            $foodId = $request->input('item_id');
+            if(count($variationArray)>0){
+                foreach ($variationArray as $index => $item) {
+
+                    $exists = \DB::table('variation_options')
+                        ->join('variations', 'variations.id', '=', 'variation_options.variation_id')
+                        ->where('variation_options.id', $item['variation_option_id'])
+                        ->where('variation_options.variation_id', $item['variation_id'])
+                        ->where('variations.food_id', $foodId)
+                        ->exists();
+
+                    if (! $exists) {
+                        return response()->json([
+                            'status' => false,
+                            'message' =>
+                                "Variation option does not belong to variation (index {$index})"
+                        ], 422);
+                    }
+                }
+            }
+             
             $foodData=Food::where('id', $request->item_id)->where('restaurant_id', $request->restaurant_id)->first();
 
             if(is_null($foodData)){
                 return response()->json(['status'=>'failed','message'=>"Food details not found for selected restaurant"], 400);  
             }
-
-
 
             $user_id = $request->user ? $request->user->id : $request['guest_id'];
             $is_guest = $request->user ? 0 : 1;
@@ -143,32 +214,79 @@ class CartController extends Controller
             $cart = Cart::where('item_id',$request->item_id)->where('item_type',$model)->where('user_id', $user_id)->where('is_guest',$is_guest)->first();
             if($cart){
                 if($request->quantity>0){
-                    $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
-                    $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
+
+                    $addOnsArray = collect($request->addons ?? [])
+                        ->map(function ($addon) {
+                            return [
+                                'add_on_id'  => (int) $addon['add_on_id'],
+                                'add_on_qty' => (int) $addon['add_on_qty'],
+                            ];
+                        })
+                        ->values()
+                        ->toArray();
+ 
+                    $variationsArray = collect($request->variations ?? [])
+                    ->map(function ($variation) {
+                        return [
+                            'variation_id'        => (int) $variation['variation_id'],
+                            'variation_option_id' => (int) $variation['variation_option_id'],
+                            'variation_qty' => (int) $variation['variation_qty'],
+                        ];
+                    })
+                    ->values()
+                    ->toArray();
                     $cart->item_type = $model;
                     $cart->price = $request->price;
                     $cart->quantity = $request->quantity;
-                    $cart->variations =json_encode($request->variations ?? []);
-                    $cart->variation_options =json_encode($request->variation_options ?? []);
-                    $cart->save();
+                    $cart->add_on_ids = json_encode($addOnsArray);
+                    $cart->variations = json_encode($variationsArray);
+                   $cart->save();
                 } else if($request->quantity==0){
                     $cart->delete();
                 }
             }
 
+            $addOnsArray = collect($request->addons ?? [])
+                ->map(function ($addon) {
+                    return [
+                        'add_on_id'  => (int) $addon['add_on_id'],
+                        'add_on_qty' => (int) $addon['add_on_qty'],
+                    ];
+                })
+                ->values()
+                ->toArray();
 
+            $variationsArray = collect($request->variations ?? [])
+            ->map(function ($variation) {
+                return [
+                    'variation_id'        => (int) $variation['variation_id'],
+                    'variation_option_id' => (int) $variation['variation_option_id'],
+                    'variation_qty' => (int) $variation['variation_qty'],
+                ];
+            })
+            ->values()
+            ->toArray();
 
             if($item?->maximum_cart_quantity && ($request->quantity>$item->maximum_cart_quantity)){
                 return response()->json(['status'=>'failed','code' => 'cart_item_limit', 'message' => translate('messages.maximum_cart_quantity_exceeded')], 403);
             }
             if($request->model === 'Food'){
-                $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$item,quantity: $request->quantity,add_on_qtys:$request->add_on_qtys, variation_options: $request?->variation_options,add_on_ids:$request->add_on_ids );
+
+                $variation_options=array();
+               
+                foreach($variationsArray as $variation_option){
+                    $variation_options[]=$variation_option['variation_option_id'];
+                }
+
+ 
+                $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$item,quantity: $request->quantity,add_on_qtys:[], variation_options: $variation_options,add_on_ids:$request->addons );
 
                 if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
                     return response()->json(['status'=>'failed','code' => 'stock_out', 'message' => data_get($addonAndVariationStock, 'out_of_stock') ], 403);
                 }
             }
 
+           
             if(is_null($cart)){
                 $cart = new Cart();
                 $cart->order_type =$request->order_type;
@@ -176,32 +294,15 @@ class CartController extends Controller
                 $cart->item_id = $request->item_id;
                 $cart->restaurant_id = $request->restaurant_id;
                 $cart->is_guest = $is_guest;
-                $cart->add_on_ids =json_encode($request->add_on_ids ?? []);
-                $cart->add_on_qtys =json_encode($request->add_on_qtys ?? []);
+                $cart->add_on_ids = json_encode($addOnsArray);
+                $cart->variations = json_encode($variationsArray);
                 $cart->item_type = $model;
                 $cart->price = $request->price;
-                $cart->quantity = $request->quantity;
-                $cart->variations =json_encode($request->variations ?? []);
-                $cart->variation_options =json_encode($request->variation_options ?? []);
+                $cart->quantity = $request->quantity; 
                 $cart->save();
-
                 $item->carts()->save($cart);
             }
-            $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
-            ->map(function ($data) {
-                $data->restaurant_name =$data->restaurant?->name;
-                $data->add_on_ids = json_decode($data->add_on_ids,true) ?? [];
-                $data->add_on_qtys = json_decode($data->add_on_qtys,true) ?? [];
-                $data->variations = json_decode($data->variations,true) ?? [];
-                $data->variation_options = json_decode($data->variation_options,true) ?? [];
-
-                $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations, $data->variation_options, $data->add_on_ids,
-                $data->add_on_qtys, false, app()->getLocale());
-                unset($data->restaurant);
-                return $data;
-            });
-           return response()->json(['status'=>'success','data'=>$carts], 200);
-
+            return response()->json(['status'=>'success','data'=>null, 'message'=>'Item added successfully'], 200);
        } catch(\Extension $e){
              return response()->json([
                    'status' => 'failed',
@@ -302,27 +403,14 @@ class CartController extends Controller
             }
 
             $cart->delete();
-
-            $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
-            ->map(function ($data) {
-                $data->restaurant_name =$data->restaurant?->name;
-                $data->add_on_ids = json_decode($data->add_on_ids,true) ?? [];
-                $data->add_on_qtys = json_decode($data->add_on_qtys,true) ?? [];
-                $data->variations = json_decode($data->variations,true) ?? [];
-                $data->variation_options = json_decode($data->variation_options,true) ?? [];
-                $data->item = Helpers::cart_product_data_formatting($data->item, $data->variations, $data->variation_options, $data->add_on_ids,
-                $data->add_on_qtys, false, app()->getLocale());
-                unset($data->restaurant);
-                return $data;
-            });
-            return response()->json(['status'=>'success','data'=>$carts], 200);
+            return response()->json(['status'=>'success','data'=>null, 'message'=>'Item deleted successfully'], 200);
 
         } catch(\Extension $e){
              return response()->json([
-                   'status' => 'failed',
-                   'message' => "Something went wrong. ",
-                   'error'=>$e->getMessage()
-                 ], 500);
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getMessage()
+             ], 500);
         }
     }
 
@@ -451,6 +539,150 @@ class CartController extends Controller
     }
 
 
+    private function getCharages($restaurantIds, $request)
+    {
 
+        $deliveryCharge = 0;
+        $OriginalDeliveryCharge = 0;
+        for ($i=0; $i <count($restaurantIds) ; $i++) { 
+           
+            $restaurant_id=$restaurantIds[$i];
+            $restaurant = Restaurant::selectRaw("
+                (6371 * acos(
+                    cos(radians(?)) * 
+                    cos(radians(restaurants.latitude)) *
+                    cos(radians(restaurants.longitude) - radians(?)) +
+                    sin(radians(?)) * sin(radians(restaurants.latitude))
+                )) AS distance
+            ", [$request->latitude, $request->longitude, $request->latitude])
+            ->where('id', $restaurant_id)
+            ->first();
+ 
+
+            $coupon = null;
+            $delivery_charge = null;
+            $free_delivery_by = null;
+            $coupon_created_by = null;
+            $schedule_at =\Carbon\Carbon::now();
+            $per_km_shipping_charge = 0;
+            $minimum_shipping_charge = 0;
+            $maximum_shipping_charge =  0;
+            $max_cod_order_amount_value=  0;
+            $increased=0;
+            $distance_data = 0;
+
+
+            if (!empty($request->coupon_code)) {
+                $coupon = Coupon::active()->where(['code' => $request['coupon_code']])->first();
+                if (isset($coupon)) {
+                    if($coupon->coupon_type == 'free_delivery'){
+                        $delivery_charge = 0;
+                    }
+                } 
+            } 
+
+            $data = Helpers::vehicle_extra_charge(distance_data:$distance_data);
+            $extra_charges = (float) (isset($data) ? $data['extra_charge']  : 0);
+            $vehicle_id= (isset($data) ? (int) $data['vehicle_id']  : null);
+
+            if($request->latitude && $request->longitude){
+                $zone = Zone::where('id', $restaurant->zone_id)->whereContains('coordinates', new Point($request->latitude, $request->longitude, POINT_SRID))->first(); 
+                if($zone){       
+                   
+                    // Assign values safely (even if 0)
+                    $per_km_shipping_charge     = $zone->per_km_shipping_charge ?? 0;
+                    $minimum_shipping_charge    = $zone->minimum_shipping_charge ?? 0;
+                    $maximum_shipping_charge    = $zone->maximum_shipping_charge ?? 0;
+                    $max_cod_order_amount_value = $zone->max_cod_order_amount ?? 0;
+
+                    // Increased delivery fee
+                    if ((int) $zone->increased_delivery_fee_status === 1) {
+                        $increased = $zone->increased_delivery_fee ?? 0;
+                    }
+                }
+            } 
+
+            if (
+                !in_array($request['order_type'], ['take_away', 'dine_in'])
+                && !$restaurant->free_delivery
+                && !isset($delivery_charge)
+                && (
+                    ($restaurant->restaurant_model == 'subscription'
+                        && isset($restaurant->restaurant_sub)
+                        && $restaurant->self_delivery_system == 1)
+                    // ||
+                    // ($restaurant->restaurant_model == 'commission'
+                    //     && $restaurant->self_delivery_system == 1)
+                )
+            ) {
+                    $per_km_shipping_charge = $restaurant->per_km_shipping_charge;
+                    $minimum_shipping_charge = $restaurant->minimum_shipping_charge;
+                    $maximum_shipping_charge = $restaurant->maximum_shipping_charge;
+                    $extra_charges= 0;
+                    $vehicle_id=null;
+                    $increased=0;
+            }
+
+            if($restaurant->free_delivery || $free_delivery_by == 'vendor' ){
+                $per_km_shipping_charge = $restaurant->per_km_shipping_charge;
+                $minimum_shipping_charge = $restaurant->minimum_shipping_charge;
+                $maximum_shipping_charge = $restaurant->maximum_shipping_charge;
+                $extra_charges= 0;
+                $vehicle_id=null;
+                $increased=0;
+            }
+
+            $original_delivery_charge = ($restaurant->distance * $per_km_shipping_charge > $minimum_shipping_charge) ? $restaurant->distance * $per_km_shipping_charge + $extra_charges  : $minimum_shipping_charge + $extra_charges;
+
+        
+            if(in_array($request['order_type'], ['take_away', 'dine_in']))
+            {
+                $per_km_shipping_charge = 0;
+                $minimum_shipping_charge = 0;
+                $maximum_shipping_charge = 0;
+                $extra_charges= 0;
+                $distance_data = 0;
+                $vehicle_id=null;
+                $increased=0;
+                $original_delivery_charge =0;
+            }
+
+            if ( $maximum_shipping_charge  > $minimum_shipping_charge  && $original_delivery_charge >  $maximum_shipping_charge ){
+                $original_delivery_charge = $maximum_shipping_charge;
+            }
+            else{
+                $original_delivery_charge = $original_delivery_charge;
+            }
+
+            if(!isset($delivery_charge)){
+                $delivery_charge = ($request->distance * $per_km_shipping_charge > $minimum_shipping_charge) ? $request->distance * $per_km_shipping_charge : $minimum_shipping_charge;
+                if ( $maximum_shipping_charge  > $minimum_shipping_charge  && $delivery_charge + $extra_charges >  $maximum_shipping_charge ){
+                    $delivery_charge =$maximum_shipping_charge;
+                }
+                else{
+                    $delivery_charge =$extra_charges + $delivery_charge;
+                }
+            }
+
+            if($increased > 0 ){
+                if($delivery_charge > 0){
+                    $increased_fee = ($delivery_charge * $increased) / 100;
+                    $delivery_charge = $delivery_charge + $increased_fee;
+                }
+                if($original_delivery_charge > 0){
+                    $increased_fee = ($original_delivery_charge * $increased) / 100;
+                    $original_delivery_charge = $original_delivery_charge + $increased_fee;
+                }
+            }
+
+            $deliveryCharge =$deliveryCharge+round($delivery_charge, config('round_up_to_digit'))??0;
+            $OriginalDeliveryCharge =$OriginalDeliveryCharge+round($original_delivery_charge, config('round_up_to_digit'));
+        }
+        
+        $data['delivered_charge']=$deliveryCharge;
+        $data['original_delivery_charge']=$OriginalDeliveryCharge;
+
+        return $data;
+    }
     
 }

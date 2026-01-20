@@ -16,4 +16,10 @@ class ReservedTableDetail extends Model
     public $timestamps = true; // false if table has no created_at/updated_at
 
     protected $guarded = [];
+
+
+    public function restaurantTables()
+    {
+        return $this->belongsTo(RestaurantTable::class, 'table_id');
+    }
 }

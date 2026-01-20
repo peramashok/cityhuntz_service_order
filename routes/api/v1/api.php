@@ -21,6 +21,9 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
 
     Route::prefix('orders')->group(function () {
         Route::get('order-report-export', 'ReportsController@order_report_export')->name('order-report');
+
+        Route::get('download_printer_invoice/{order_id}', 'OrdersController@downloadPrinterInvoice')->name('download_printer_invoice');
+        Route::get('download_order_invoice/{order_id}', 'OrdersController@downloadOrderInvoice')->name('download_order_invoice');
     });
    
     Route::group(['prefix' => 'member', 'middleware' => ['auth:api']], function () {
@@ -60,6 +63,14 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
              Route::post('all_bookings', 'getAllVendorBookings');
              Route::get('get_booked_details/{id}', 'getVendorBookedTableDetails');
              Route::post('update_status', 'updateBookingStatus');
+        });
+
+
+         Route::group(['prefix' => 'delivery-man'], function () {
+            Route::controller(DeliverymanController::class)->group(function () {
+                Route::get('get-delivery-man-list', 'get_delivery_man_list');
+                Route::get('assign-deliveryman', 'assign_deliveryman');
+            });
         });
 
         Route::group(['prefix' => 'message'], function () {
@@ -120,6 +131,7 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
              Route::get('book_now', 'book_now');
              Route::get('get_booked_details/{id}', 'getBookedTableDetails');
              Route::get('my_bookings', 'getAllCustomerBookings');
+             Route::post('cancel', 'cancel_booking');
         });
 
         Route::prefix('cart')->controller(CartController::class)->group(function () {

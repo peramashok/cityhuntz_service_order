@@ -224,12 +224,32 @@ class Restaurant extends Model
 
     public function getGstStatusAttribute()
     {
-        return (boolean)($this->gst?json_decode($this->gst, true)['status']:0);
+        //return (boolean)($this->gst?json_decode($this->gst, true)['status']:0);
+            if (empty($this->gst)) {
+                return false;
+            }
+
+            // If gst is already integer (0/1)
+            if (is_numeric($this->gst)) {
+                return (bool) $this->gst;
+            }
+
+            // If gst is JSON
+            $gst = json_decode($this->gst, true);
+
+            return isset($gst['status']) ? (bool) $gst['status'] : false;
     }
 
     public function getGstCodeAttribute()
     {
-        return (string)($this->gst?json_decode($this->gst, true)['code']:'');
+        //return (string)($this->gst?json_decode($this->gst, true)['code']:'');
+         if (empty($this->gst) || is_numeric($this->gst)) {
+            return null;
+        }
+
+        $gst = json_decode($this->gst, true);
+
+        return $gst['code'] ?? null;
     }
 
     public function getFreeDeliveryDistanceStatusAttribute()

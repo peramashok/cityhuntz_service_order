@@ -24,6 +24,9 @@ use App\Models\RestaurantTable;
 use App\Models\PaymentSetting;
 use App\Models\ReservedTableDetail;
 
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
 class BookATableController extends Controller
 {
     public function book_now(Request $request)
@@ -269,7 +272,8 @@ class BookATableController extends Controller
             foreach($tablesList as $single){
                 $ReservedTableData = new ReservedTableDetail();
                 $ReservedTableData->order_id=$bookATable->id;
-                $ReservedTableData->table_no=$single->id;
+                $ReservedTableData->table_id=$single->id;
+                $ReservedTableData->table_name=$single->table_name;
                 $ReservedTableData->amount=$single->price;
                 $ReservedTableData->status='Booked';
                 $ReservedTableData->save();
@@ -322,14 +326,14 @@ class BookATableController extends Controller
             $guest_id=$request->user ? $request->user->id : $request->guest_id;
             $is_guest=$request->user ? 0 : 1;
 
-            $reservation = ReservedTable::with('table_details')->where('id', $id)->where('user_id', $guest_id)->where('is_guest', $is_guest)->first();
+            $reservation = ReservedTable::with('table_details', 'table_details.restaurantTables')->where('id', $id)->where('user_id', $guest_id)->where('is_guest', $is_guest)->first();
             $tableIds = explode(',', $reservation->table_nos);
 
             $tables = RestaurantTable::whereIn('id', $tableIds)->get();
 
              return response()->json([
                'status' => 'success',
-               'data' => ['reservation'=>$reservation, 'tables_list'=>$tables] 
+               'data' => ['reservation'=>$reservation] 
              ], 200);
 
          } catch(\Exception $e){
@@ -615,11 +619,7 @@ class BookATableController extends Controller
             }
 
             $vendor = auth()->user();
-            $order = ReservedTable::with('restaurant')->where('restaurant_id', $request->restaurant_id)->whereHas('restaurant.vendor', function($query) use($vendor){
-                $query->where('id', $vendor->id);
-            })
-            ->first();
-
+            $order = ReservedTable::with('restaurant')->where('id', $request->booking_id)->where('restaurant_id', $request->restaurant_id)->first();
             if(!$order)
             {
                 return response()->json([
@@ -629,31 +629,76 @@ class BookATableController extends Controller
                 ], 403);
             }
 
+             $restaurant=Restaurant::where('id', $request->restaurant_id)->first();
 
-            $restaurant=$order->restaurant;
-            $data =0;
-            if ($restaurant?->restaurant_model == 'subscription'){
-            // $data =1;
+            if($restaurant->vendor_id!=$vendor->id){
+                return response()->json([
+                    'status'=>'failed',
+                    'code' => 'booking', 
+                    'message' => "You can’t change status of other restaurant's bookings"
+                ], 403);
             }
 
-            // if($request['status'] =="confirmed" && !$data)
-            // {
-
-
-            //     return response()->json([
-            //         'status'=>'failed',
-            //         'code' => 'order-confirmation-model', 
-            //         'status'=>$request['status'] =="confirmed".!$data,
-            //         'message' => translate('messages.order_confirmation_warning')
-            //     ], 403);
+            $restaurant=$order->restaurant;
+            // $data =0;
+            // if ($restaurant?->restaurant_model == 'subscription'){
+            //   $data =1;
             // }
+ 
+            
 
             $order->order_status = $request['status'];
             if($request->status=='cancelled'){
                 $order->cancelled_reason = $request['reason'];
+                $order->cancelled_by = 'restaurant';
             }
             $order[$request['status']] = now();
             $order->save();
+
+            if($request->status=='closed' ){
+                $tranArray=array(
+                    "user_id"=>$vendor->id,
+                    "transaction_id"=>"R".uniqid('', true),
+                    "credit"=>round($order->total_amount-$order->processing_charges,2),
+                    "transaction_type"=>'booking',
+                    "reference"=>$vendor->phone,
+                    "order_id"=>$order->id,
+                    "restaturant_id"=>$order->restaurant_id,
+                    "created_at"=>now()
+                );
+
+                WalletTransaction::create($tranArray);
+            }
+
+            if($request->status=='cancelled'){
+                try {
+                    $response = Http::post(
+                        env('PAYMENT_URL') . 'refunds/booking_refund',
+                        [
+                            'booking_id' => $order->id,
+                            'amount'=>$order->total_amount 
+                        ]
+                    );
+                } catch (\Exception $th) {
+                    Log::error($ex->getMessage());
+                }
+            }
+            try{
+                $response = Http::post(
+                    env('NOTIFICATION_URL') . 'notifications/update_booking_status',
+                    [
+                        'booking_id' => $order->id,
+                        'status'=>$request['status']
+                    ]
+                );
+            }catch(\Exception $ex){
+                \Log::error('Notification API failed', [
+                    'message' => $ex->getMessage(),
+                    'booking_id' => $order->id,
+                ]); 
+            }
+
+            
            // Helpers::send_order_notification($order);
 
             return response()->json(['status'=>'success','message' => 'You have successfully updated booking status into '. $request->status], 200);
@@ -665,5 +710,76 @@ class BookATableController extends Controller
                    'error'=>$e->getMessage()
                  ], 500);
         }
+    }
+
+
+
+     /**
+     * cancel placed order
+     * @param Illuminate\Http\Request
+     * @return Illuminate\Http\Resp
+     */
+     public function cancel_booking(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'reason' => 'required|max:255',
+            'guest_id' => $request->user ? 'nullable' : 'required',
+            'booking_id'=>'required|exists:reserved_tables,id'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
+        }
+        $user_id = $request->user ? $request->user->id : $request['guest_id'];
+        $order = ReservedTable::where(['user_id' => $user_id, 'id' => $request['booking_id']])
+
+        ->when(!isset($request->user) , function($query){
+            $query->where('is_guest' , 1);
+        })
+
+        ->when(isset($request->user)  , function($query){
+            $query->where('is_guest' , 0);
+        })
+        ->first();
+        if(!$order){
+                return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.not_found')], 400);
+        }
+        else if ($order->order_status == 'pending' || $order->order_status == 'failed' || $order->order_status == 'cancelled'  ) {
+            $order->order_status = 'cancelled';
+            $order->cancelled = now();
+            $order->cancelled_reason = $request->reason;
+            $order->cancelled_by = 'customer';
+            $order->save();
+
+             try {
+                $response = Http::post(
+                    env('PAYMENT_URL') . 'refunds/booking_refund',
+                    [
+                        'booking_id' => $order->id,
+                        'amount'=>$order->total_amount,
+                        'reason'=>$request->reason
+                    ]
+                );
+            } catch (\Exception $th) {
+                Log::error($th->getMessage());
+            }
+
+            try{
+                $response = Http::post(
+                    env('NOTIFICATION_URL') . 'notifications/update_booking_status',
+                    [
+                        'booking_id' => $order->id,
+                        'status'=>'cancelled'
+                    ]
+                );
+            }catch(\Exception $ex){
+                \Log::error('Notification API failed', [
+                    'message' => $ex->getMessage(),
+                    'booking_id' => $order->id,
+                ]); 
+            }
+            return response()->json(['status'=>'success', 'message' => translate('messages.order_canceled_successfully')], 200);
+        }
+        return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.you_can_not_cancel_after_confirm')], 403);
     }
 }
