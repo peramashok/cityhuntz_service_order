@@ -154,14 +154,66 @@ footer {
             $food=json_decode($singleOrder->food_details, true);
 
             $addOns=$singleOrder->add_ons;
+
+
+
+                   
+  
+
          @endphp
         <tr>
-             <td>{{$i}}</td><td>{{$food['name']}}</td><td>{{$singleOrder->quantity}}</td> <td>{{number_format($food['price']*$singleOrder->quantity, 2)}}</td> 
+             <td>{{$i++}}</td> <td>{{$food['name']}}</td><td>{{$singleOrder->quantity}}</td> <td>{{number_format($food['price']*$singleOrder->quantity, 2)}}</td> 
         </tr>
+
+        @php
+
+        $variationPrice = 0;
+                    
+                if (!empty($singleOrder['variation'])) {
+
+                    $variationData=$singleOrder['variation'];
+
+                    if (is_string($variationData)) {
+                        $variationData = json_decode($variationData, true);
+                    }
+
+                    foreach ($variationData as $singleVariation) {
+                    
+                        $variationPrice += $singleVariation['optionPrice'] ?? 0;
+                        @endphp
+                            <tr><td>{{$i++}}</td><td>{{$singleVariation['label'] ?? 'Variation Option Name'}}</td><td>{{$singleVariation['quantity']}}</td><td>{{number_format($singleVariation['quantity']*$singleVariation['optionPrice'], 2)}}</td></tr>
+                        @php
+                    }
+                }
+
+                
+                $addonsPrice = 0;
+                 
+
+                if (!empty($singleOrder['add_ons'])) {
+
+                    $addsOns=$singleOrder['add_ons'];
+
+                    if (is_string($addsOns)) {
+                        $addsOns = json_decode($addsOns, true);
+                    }
+
+                   foreach ($addsOns as $addon) {
+                        $addCost=($addon['price']*$addon['quantity']);
+                        $addonsPrice +=$addCost  ?? 0;
+                         @endphp
+
+                          <tr><td>{{$i++}}</td><td>{{$addon['name']}}</td><td>{{$addon['quantity']}}</td><td>{{number_format($addCost, 2)}}</td></tr>
+
+                        @php
+
+                    }
+                }
+             @endphp
             @php 
-               $food_cost=$food_cost+$foodCost; 
+               $food_cost=$food_cost+$foodCost+$variationPrice+$addonsPrice; 
                
-               $i=$i+1;
+              
             @endphp
             @endforeach
                
