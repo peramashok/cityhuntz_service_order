@@ -158,14 +158,6 @@ footer {
         <tr>
              <td>{{$i}}</td><td>{{$food['name']}}</td><td>{{$singleOrder->quantity}}</td> <td>{{number_format($food['price']*$singleOrder->quantity, 2)}}</td> 
         </tr>
-            @if(count($addOns)>0)
-                @foreach ($addOns as $item)
-                    <p>
-                        {{ $item['name'] }} -
-                        {{ $item['quantity'] }} × ${{ $item['price'] }}
-                    </p>
-                @endforeach
-            @endif
             @php 
                $food_cost=$food_cost+$foodCost; 
                
