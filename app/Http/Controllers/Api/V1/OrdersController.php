@@ -38,6 +38,7 @@ use App\Models\PaymentSetting;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class OrdersController extends Controller
 {
