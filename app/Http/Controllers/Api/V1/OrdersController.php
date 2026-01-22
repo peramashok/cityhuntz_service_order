@@ -240,8 +240,7 @@ class OrdersController extends Controller
             $order->canceled_by = 'customer';
             $order->save();
 
-
-             try {
+            try {
                 $response = Http::post(
                     env('PAYMENT_URL') . 'refunds/order_refund',
                     [
@@ -254,7 +253,7 @@ class OrdersController extends Controller
                 Log::error($ex->getMessage());
             }
 
-             try{
+            try{
                 $response = Http::post(
                     env('NOTIFICATION_URL') . 'notifications/update_status',
                     [
@@ -270,26 +269,8 @@ class OrdersController extends Controller
                 ]); 
             }
 
-
             Helpers::decreaseSellCount(order_details:$order->details);
-            //notification need to do
-           // Helpers::send_order_notification($order);
             Helpers::increment_order_count($order->restaurant); //for subscription package order increase
-
-
-            $wallet_status= BusinessSetting::where('key','wallet_status')->first()?->value;
-            $refund_to_wallet= BusinessSetting::where('key', 'wallet_add_refund')->first()?->value;
-
-            if($order?->payments && $order?->is_guest == 0){
-                $refund_amount =$order->payments()->where('payment_status','paid')->sum('amount');
-                if($wallet_status &&  $refund_to_wallet && $refund_amount > 0){
-                    CustomerLogic::create_wallet_transaction(user_id:$order->user_id, amount:$refund_amount,transaction_type: 'order_refund',referance: $order->id);
-
-                    return response()->json(['status'=>'failed', 'message' => translate('messages.order_canceled_successfully_and_refunded_to_wallet')], 200);
-                } else {
-                    return response()->json(['status'=>'failed', 'message' => translate('messages.order_canceled_successfully_and_for_refund_amount_contact_admin')], 200);
-                }
-            }
 
             return response()->json(['status'=>'success', 'message' => translate('messages.order_canceled_successfully')], 200);
         }
