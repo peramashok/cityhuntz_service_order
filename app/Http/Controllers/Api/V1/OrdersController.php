@@ -1124,7 +1124,7 @@ class OrdersController extends Controller
             $user_id = $request->user ? $request->user->id : $request['guest_id'];
      
             $paginator = Order::with(['restaurant', 'delivery_man.rating'])->withCount('details')->where(['user_id' => $user_id])->
-            whereIn('order_status', ['accepted','pending','confirmed', 'processing', 'handover','picked_up','canceled','failed'])->Notpos()
+            whereIn('order_status', ['accepted','pending','confirmed', 'processing', 'handover','picked_up','canceled','failed', 'delivered'])->Notpos()
             ->whereNull('subscription_id')
             ->when(!isset($request->user) , function($query){
                 $query->where('is_guest' , 1);
