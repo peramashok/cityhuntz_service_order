@@ -630,23 +630,22 @@ class Helpers
         foreach ($order_details as $detail) {
             $optionIds=[];
             $detail->variation=$detail->variation!='' ? $detail->variation : []; 
-            if($detail->variation != '[]'){
-                if(count($detail->variation)>0){
-                    foreach (json_decode($detail->variation, true) as $value) {
-                        foreach (data_get($value,'values' ,[]) as $item) {
-                            if(data_get($item, 'option_id', null ) != null){
-                                $optionIds[] = data_get($item, 'option_id', null );
-                            }
-                        }
+            $detail->add_ons=$detail->add_ons!='' ? $detail->add_ons : []; 
+            $variations = json_decode($detail->variation, true);
+             if(!empty($variations) && is_array($variations) && count($variations) > 0){
+                 foreach ($variations as $variation) {
+                    if(data_get($variation, 'option_id', null ) != null){
+                        VariationOption::where('id',data_get($variation, 'option_id', null ))->where('sell_count', '>', 0)->decrement('sell_count' ,data_get($variation, 'quantity', 1 ));
                     }
-                    VariationOption::whereIn('id', $optionIds)->where('sell_count', '>', 0)->decrement('sell_count' ,$detail->quantity);
                 }
             }
+
             $detail->food()->where('sell_count', '>', 0)->decrement('sell_count' ,$detail->quantity);
-            if($detail->add_ons!='' && count($detail->add_ons)>0){
-                foreach (json_decode($detail->add_ons, true) as $add_ons) {
+             $addOns = json_decode($detail->add_ons, true);
+             if(!empty($addOns) && is_array($addOns) && count($addOns) > 0){
+                 foreach ($addOns as $add_ons) {
                     if(data_get($add_ons, 'id', null ) != null){
-                    AddOn::where('id',data_get($add_ons, 'id', null ))->where('sell_count', '>', 0)->decrement('sell_count' ,data_get($add_ons, 'quantity', 1 ));
+                        AddOn::where('id',data_get($add_ons, 'id', null ))->where('sell_count', '>', 0)->decrement('sell_count' ,data_get($add_ons, 'quantity', 1 ));
                     }
                 }
             }
@@ -1014,25 +1013,53 @@ class Helpers
 
     public static function get_varient(array $product_variations, array $variations)
     {
+        // $result = [];
+        // $variation_price = 0;
+ 
+        // foreach($variations as $variation){
+            
+        //     foreach($product_variations as  $product_variation){
+        //         if(isset($product_variation['values'])){ 
+        //             foreach($product_variation['values'] as $key=> $option){
+        //                 if(in_array($option['option_id'], $variation)){
+        //                     $option['quantity']=$variation['variation_qty'];
+        //                     $result[] = $option;
+        //                     $variation_price += $option['optionPrice']*$variation['variation_qty'];
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+ 
+        // return ['price'=>round($variation_price,2),'variations'=>array_values($result)];
+
+
+        $optionMap = [];
+
+        foreach ($product_variations as $pv) {
+            foreach ($pv['values'] ?? [] as $opt) {
+                $optionMap[$opt['option_id']] = $opt;
+            }
+        }
+
         $result = [];
         $variation_price = 0;
- 
-        foreach($variations as $variation){
-            
-            foreach($product_variations as  $product_variation){
-                if(isset($product_variation['values'])){ 
-                    foreach($product_variation['values'] as $key=> $option){
-                        if(in_array($option['option_id'], $variation)){
-                            $option['quantity']=$variation['variation_qty'];
-                            $result[] = $option;
-                            $variation_price += $option['optionPrice']*$variation['variation_qty'];
-                        }
-                    }
-                }
+
+        foreach ($variations as $variation) {
+            if (isset($optionMap[$variation['variation_option_id']])) {
+                $opt = $optionMap[$variation['variation_option_id']];
+                $opt['quantity'] = $variation['variation_qty'];
+                $result[] = $opt;
+                $variation_price += $opt['optionPrice'] * $variation['variation_qty'];
             }
         }
  
-        return ['price'=>round($variation_price,2),'variations'=>array_values($result)];
+        return [
+            'price' => round($variation_price, 2),
+            'variations' => array_values($result)
+        ];
+
+
     }
 
     public static function get_varientold(array $product_variations, array $variations)
