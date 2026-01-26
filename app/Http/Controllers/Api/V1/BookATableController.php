@@ -757,7 +757,7 @@ class BookATableController extends Controller
 
              try {
 
-                echo env('PAYMENT_URL') . 'refunds/booking_refund';
+
                  $response = Http::post(
                         env('PAYMENT_URL') . 'refunds/booking_refund',
                         [
@@ -766,7 +766,7 @@ class BookATableController extends Controller
                         ]
                     );
 
-                return response()->json(['status'=>'failed', 'code' => 'order', 'message' => $response], 400);
+                 
             } catch (\Exception $th) {
                 Log::error($th->getMessage());
             }
