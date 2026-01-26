@@ -759,6 +759,8 @@ class BookATableController extends Controller
                         'amount'=>$order->total_amount
                     ]
                 );
+                
+                dd($response);
             } catch (\Exception $th) {
                 Log::error($th->getMessage());
             }
