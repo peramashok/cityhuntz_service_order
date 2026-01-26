@@ -744,7 +744,7 @@ class BookATableController extends Controller
         if(!$order){
                 return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.not_found')], 400);
         }
-        else if ($order->order_status == 'pending' || $order->order_status == 'failed' || $order->order_status == 'cancelled'  ) {
+        else if ($order->order_status != 'closed') {
             $order->order_status = 'cancelled';
             $order->cancelled = now();
             $order->cancelled_reason = $request->reason;
@@ -756,8 +756,7 @@ class BookATableController extends Controller
                     env('PAYMENT_URL') . 'refunds/booking_refund',
                     [
                         'booking_id' => $order->id,
-                        'amount'=>$order->total_amount,
-                        'reason'=>$request->reason
+                        'amount'=>$order->total_amount
                     ]
                 );
             } catch (\Exception $th) {
