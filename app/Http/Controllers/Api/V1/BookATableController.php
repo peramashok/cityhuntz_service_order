@@ -673,8 +673,7 @@ class BookATableController extends Controller
             if($request->status=='cancelled'){
                 try {
 
-                    echo env('PAYMENT_URL') . 'refunds/booking_refund';
-                    
+
                     $response = Http::post(
                         env('PAYMENT_URL') . 'refunds/booking_refund',
                         [
@@ -683,8 +682,7 @@ class BookATableController extends Controller
                         ]
                     );
 
-                     return response()->json(['status'=>'failed','message' => $response], 400);
-
+                   
                 } catch (\Exception $th) {
                     Log::error($ex->getMessage());
                 }
@@ -758,15 +756,17 @@ class BookATableController extends Controller
             $order->save();
 
              try {
-                $response = Http::post(
-                    env('PAYMENT_URL') . 'refunds/booking_refund',
-                    [
-                        'booking_id' => $order->id,
-                        'amount'=>$order->total_amount
-                    ]
-                );
 
-                dd($response);
+                echo env('PAYMENT_URL') . 'refunds/booking_refund';
+                 $response = Http::post(
+                        env('PAYMENT_URL') . 'refunds/booking_refund',
+                        [
+                            'booking_id' => $order->id,
+                            'amount'=>$order->total_amount 
+                        ]
+                    );
+
+                return response()->json(['status'=>'failed', 'code' => 'order', 'message' => $response], 400);
             } catch (\Exception $th) {
                 Log::error($th->getMessage());
             }
@@ -787,6 +787,6 @@ class BookATableController extends Controller
             }
             return response()->json(['status'=>'success', 'message' => translate('messages.order_canceled_successfully')], 200);
         }
-        return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.you_can_not_cancel_after_confirm')], 403);
+        return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.you_can_not_cancel_after_confirm')], 400);
     }
 }
