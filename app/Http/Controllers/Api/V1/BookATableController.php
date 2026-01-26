@@ -771,20 +771,20 @@ class BookATableController extends Controller
                 Log::error($th->getMessage());
             }
 
-            try{
-                $response = Http::post(
-                    env('NOTIFICATION_URL') . 'notifications/update_booking_status',
-                    [
-                        'booking_id' => $order->id,
-                        'status'=>'cancelled'
-                    ]
-                );
-            }catch(\Exception $ex){
-                \Log::error('Notification API failed', [
-                    'message' => $ex->getMessage(),
-                    'booking_id' => $order->id,
-                ]); 
-            }
+            // try{
+            //     $response = Http::post(
+            //         env('NOTIFICATION_URL') . 'notifications/update_booking_status',
+            //         [
+            //             'booking_id' => $order->id,
+            //             'status'=>'cancelled'
+            //         ]
+            //     );
+            // }catch(\Exception $ex){
+            //     \Log::error('Notification API failed', [
+            //         'message' => $ex->getMessage(),
+            //         'booking_id' => $order->id,
+            //     ]); 
+            // }
             return response()->json(['status'=>'success', 'message' => translate('messages.order_canceled_successfully')], 200);
         }
         return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.you_can_not_cancel_after_confirm')], 400);
