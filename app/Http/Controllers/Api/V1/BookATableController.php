@@ -719,7 +719,7 @@ class BookATableController extends Controller
 
 
      /**
-     * cancel placed order
+     * cancel reserved tabel
      * @param Illuminate\Http\Request
      * @return Illuminate\Http\Resp
      */
