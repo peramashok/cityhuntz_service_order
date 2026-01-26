@@ -672,6 +672,9 @@ class BookATableController extends Controller
 
             if($request->status=='cancelled'){
                 try {
+
+                    echo env('PAYMENT_URL') . 'refunds/booking_refund';
+                    
                     $response = Http::post(
                         env('PAYMENT_URL') . 'refunds/booking_refund',
                         [
