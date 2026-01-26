@@ -679,6 +679,9 @@ class BookATableController extends Controller
                             'amount'=>$order->total_amount 
                         ]
                     );
+
+                     return response()->json(['status'=>'failed','message' => $response], 400);
+
                 } catch (\Exception $th) {
                     Log::error($ex->getMessage());
                 }
@@ -759,7 +762,7 @@ class BookATableController extends Controller
                         'amount'=>$order->total_amount
                     ]
                 );
-                
+
                 dd($response);
             } catch (\Exception $th) {
                 Log::error($th->getMessage());
