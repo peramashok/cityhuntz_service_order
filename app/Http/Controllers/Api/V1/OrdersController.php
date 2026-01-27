@@ -218,82 +218,72 @@ class OrdersController extends Controller
         if ($validator->fails()) {
             return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
         }
-        $user_id = $request->user ? $request->user->id : $request['guest_id'];
-        $order = Order::where(['user_id' => $user_id, 'id' => $request['order_id']])
+        try{
+            $user_id = $request->user ? $request->user->id : $request['guest_id'];
+            $order = Order::where(['user_id' => $user_id, 'id' => $request['order_id']])
 
-        ->when(!isset($request->user) , function($query){
-            $query->where('is_guest' , 1);
-        })
+            ->when(!isset($request->user) , function($query){
+                $query->where('is_guest' , 1);
+            })
 
-        ->when(isset($request->user)  , function($query){
-            $query->where('is_guest' , 0);
-        })
-        ->with('details')
-        ->Notpos()->first();
-        if(!$order){
-                return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.not_found')], 400);
-        }
-        else if ($order->order_status == 'pending' || $order->order_status == 'failed' || $order->order_status == 'canceled'  ) {
-            $order->order_status = 'canceled';
-            $order->canceled = now();
-            $order->cancellation_reason = $request->reason;
-            $order->canceled_by = 'customer';
-            $order->save();
-
-
-             try {
-                $response = Http::post(
-                    env('PAYMENT_URL') . 'refunds/order_refund',
-                    [
-                        'order_id' => $order->id,
-                        'amount'=>$order->order_amount,
-                        'reason'=>$request->reason
-                    ]
-                );
-            } catch (\Exception $th) {
-                Log::error($ex->getMessage());
+            ->when(isset($request->user)  , function($query){
+                $query->where('is_guest' , 0);
+            })
+            ->with('details')
+            ->Notpos()->first();
+            if(!$order){
+                    return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.not_found')], 400);
             }
+            else if ($order->order_status == 'pending' || $order->order_status == 'failed' || $order->order_status == 'canceled'  ) {
+                $order->order_status = 'canceled';
+                $order->canceled = now();
+                $order->cancellation_reason = $request->reason;
+                $order->canceled_by = 'customer';
+                $order->save();
 
-             try{
-                $response = Http::post(
-                    env('NOTIFICATION_URL') . 'notifications/update_status',
-                    [
-                        'order_id' => $order->id,
-                        'user_type'=>'customer',
-                        'status'=>'canceled'
-                    ]
-                );
-            }catch(\Exception $ex){
-                \Log::error('Notification API failed', [
-                    'message' => $ex->getMessage(),
-                    'order_id' => $order->id,
-                ]); 
-            }
+                Helpers::decreaseSellCount(order_details:$order->details);
+                Helpers::increment_order_count($order->restaurant); //for subscription package order increase
 
-
-            Helpers::decreaseSellCount(order_details:$order->details);
-            //notification need to do
-           // Helpers::send_order_notification($order);
-            Helpers::increment_order_count($order->restaurant); //for subscription package order increase
-
-
-            $wallet_status= BusinessSetting::where('key','wallet_status')->first()?->value;
-            $refund_to_wallet= BusinessSetting::where('key', 'wallet_add_refund')->first()?->value;
-
-            if($order?->payments && $order?->is_guest == 0){
-                $refund_amount =$order->payments()->where('payment_status','paid')->sum('amount');
-                if($wallet_status &&  $refund_to_wallet && $refund_amount > 0){
-                    CustomerLogic::create_wallet_transaction(user_id:$order->user_id, amount:$refund_amount,transaction_type: 'order_refund',referance: $order->id);
-
-                    return response()->json(['status'=>'failed', 'message' => translate('messages.order_canceled_successfully_and_refunded_to_wallet')], 200);
-                } else {
-                    return response()->json(['status'=>'failed', 'message' => translate('messages.order_canceled_successfully_and_for_refund_amount_contact_admin')], 200);
+                //Refund amount
+                try {
+                    $response = Http::post(
+                        env('PAYMENT_URL') . 'refunds/order_refund',
+                        [
+                            'order_id' => $order->id,
+                            'amount'=>$order->order_amount,
+                            'reason'=>$request->reason
+                        ]
+                    );
+                } catch (\Exception $th) {
+                    Log::error($ex->getMessage());
                 }
-            }
+                //send notification
+                try{
+                    $response = Http::post(
+                        env('NOTIFICATION_URL') . 'notifications/update_status',
+                        [
+                            'order_id' => $order->id,
+                            'user_type'=>'customer',
+                            'status'=>'canceled'
+                        ]
+                    );
+                }catch(\Exception $ex){
+                    \Log::error('Notification API failed', [
+                        'message' => $ex->getMessage(),
+                        'order_id' => $order->id,
+                    ]); 
+                }
 
-            return response()->json(['status'=>'success', 'message' => translate('messages.order_canceled_successfully')], 200);
+                return response()->json(['status'=>'success', 'message' => translate('messages.order_canceled_successfully')], 200);
+            }
+            return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.you_can_not_cancel_after_confirm')], 400);
+        } catch(\Exception $e){
+              return response()->json([
+               'status' => 'failed',
+               'message' => "Something went wrong. ",
+               'error'=>$e->getLine()."-".$e->getMessage()
+             ], 500);
         }
-        return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.you_can_not_cancel_after_confirm')], 403);
     }
 
     public function place_order(Request $request)
@@ -754,14 +744,17 @@ class OrdersController extends Controller
 
                 $product_variations = json_decode($product->variations, true);
 
+ 
+                    
                 $variations=[];
                
                 if (count($product_variations)) {
                     $variation_data = Helpers::get_varient($product_variations, $selectedVariations);
-                    $price = $product['price'] + $variation_data['price'];
+                    $price = ($product['price']*$c->quantity) + $variation_data['price'];
                     $variations = $variation_data['variations'];
+
                 } else {
-                    $price = $product['price'];
+                    $price = $product['price']*$c->quantity;
                 }
  
 
@@ -786,7 +779,7 @@ class OrdersController extends Controller
                 ];
                 $order_details[] = $or_d;
                 $total_addon_price += $or_d['total_add_on_price'];
-                $product_price += $price*$or_d['quantity'];
+                $product_price += $price;
                 $restaurant_discount_amount += $or_d['discount_on_food']*$or_d['quantity'];
 
             } else {
