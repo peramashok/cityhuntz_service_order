@@ -254,12 +254,13 @@ class OrdersController extends Controller
                             'reason'=>$request->reason
                         ]
                     );
+                    dd($response);
                 } catch (\Exception $th) {
                     Log::error($ex->getMessage());
                 }
                 //send notification
                 try{
-                    $response = Http::post(
+                    $response1 = Http::post(
                         env('NOTIFICATION_URL') . 'notifications/update_status',
                         [
                             'order_id' => $order->id,
