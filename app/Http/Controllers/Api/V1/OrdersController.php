@@ -255,14 +255,14 @@ class OrdersController extends Controller
                     //     ]
                     // );
 
-                    $response = Http::asJson()->post(
-                        rtrim(env('PAYMENT_URL'), '/') . '/refunds/order_refund',
-                        [
-                            'order_id' => (string) $order->id,
-                            'amount'   => (string) $order->order_amount,
-                            'reason'   => $request->reason,
-                        ]
-                    );
+                    // $response = Http::asJson()->post(
+                    //     rtrim(env('PAYMENT_URL'), '/') . '/refunds/order_refund',
+                    //     [
+                    //         'order_id' => (string) $order->id,
+                    //         'amount'   => (string) $order->order_amount,
+                    //         'reason'   => $request->reason,
+                    //     ]
+                    // );
 
                     dd($response);
                 } catch (\Exception $th) {
@@ -278,6 +278,8 @@ class OrdersController extends Controller
                             'status'=>'canceled'
                         ]
                     );
+
+                        dd($response1);
                 }catch(\Exception $ex){
                     \Log::error('Notification API failed', [
                         'message' => $ex->getMessage(),
