@@ -255,14 +255,45 @@ class OrdersController extends Controller
                         ]
                     );
 
-                    $response = Http::asJson()->post(
-                        rtrim(env('PAYMENT_URL'), '/') . '/refunds/order_refund',
-                        [
+                    // $response = Http::asJson()->post(
+                    //     rtrim(env('PAYMENT_URL'), '/') . '/refunds/order_refund',
+                    //     [
+                    //         'order_id' => (string) $order->id,
+                    //         'amount'   => (string) $order->order_amount,
+                    //         'reason'   => $request->reason,
+                    //     ]
+                    // );
+
+
+                    $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/order_refund';
+
+                    $response = Http::asJson()
+                        ->acceptJson()
+                        ->withOptions([
+                            'timeout' => 30,
+                        ])
+                        ->post($url, [
+                            // ⚠️ Use gateway order ID if available
                             'order_id' => (string) $order->id,
-                            'amount'   => (string) $order->order_amount,
-                            'reason'   => $request->reason,
-                        ]
-                    );
+
+                            // ⚠️ Convert to smallest currency unit if required
+                            'amount'   => 1,
+
+                            'reason'   => $request->reason ?? 'Order cancelled',
+                        ]);
+
+                    if ($response->failed()) {
+                        \Log::error('Refund failed', [
+                            'status' => $response->status(),
+                            'body'   => $response->body(),
+                        ]);
+
+                        return response()->json([
+                            'status'  => 'failed',
+                            'message' => 'Refund initiation failed',
+                            'error'   => $response->json() ?? $response->body(),
+                        ], 400);
+                    }
 
                     //dd($response);
                 } catch (\Exception $th) {
@@ -279,7 +310,7 @@ class OrdersController extends Controller
                         ]
                     );
 
-                        dd($response1);
+                       
                 }catch(\Exception $ex){
                     \Log::error('Notification API failed', [
                         'message' => $ex->getMessage(),
