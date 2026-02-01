@@ -246,23 +246,23 @@ class OrdersController extends Controller
 
                 //Refund amount
                 try {
-                    // $response = Http::post(
-                    //     env('PAYMENT_URL') . 'refunds/order_refund',
-                    //     [
-                    //         'order_id' => $order->id,
-                    //         'amount'=>$order->order_amount,
-                    //         'reason'=>$request->reason
-                    //     ]
-                    // );
+                    $response = Http::post('https://dev-payment-service.cityhuntz.com/api/v1/refunds/order_refund',
+                       // env('PAYMENT_URL') . 'refunds/order_refund',
+                        [
+                            'order_id' => $order->id,
+                            'amount'=>$order->order_amount,
+                            'reason'=>$request->reason
+                        ]
+                    );
 
-                    // $response = Http::asJson()->post(
-                    //     rtrim(env('PAYMENT_URL'), '/') . '/refunds/order_refund',
-                    //     [
-                    //         'order_id' => (string) $order->id,
-                    //         'amount'   => (string) $order->order_amount,
-                    //         'reason'   => $request->reason,
-                    //     ]
-                    // );
+                    $response = Http::asJson()->post(
+                        rtrim(env('PAYMENT_URL'), '/') . '/refunds/order_refund',
+                        [
+                            'order_id' => (string) $order->id,
+                            'amount'   => (string) $order->order_amount,
+                            'reason'   => $request->reason,
+                        ]
+                    );
 
                     dd($response);
                 } catch (\Exception $th) {
