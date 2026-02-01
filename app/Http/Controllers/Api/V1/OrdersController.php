@@ -246,29 +246,31 @@ class OrdersController extends Controller
 
                 //Refund amount
                 try {
-                     
-                    $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/order_refund';
+                    if($order->payment_status=='paid'){
+                        $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/order_refund';
 
-                    $response = Http::asJson()
-                        ->acceptJson()
-                        ->withOptions([
-                            'timeout' => 30,
-                        ])
-                        ->post($url, [
-                            // ⚠️ Use gateway order ID if available
-                            'order_id' => (string) $order->id,
+                        $response = Http::asJson()
+                            ->acceptJson()
+                            ->withOptions([
+                                'timeout' => 30,
+                            ])
+                            ->post($url, [
+                                // ⚠️ Use gateway order ID if available
+                                'order_id' => (string) $order->id,
 
-                            // ⚠️ Convert to smallest currency unit if required
-                            'amount'   => $order->order_amount,
+                                // ⚠️ Convert to smallest currency unit if required
+                                'amount'   => $order->order_amount,
 
-                            'reason'   => $request->reason ?? 'Order cancelled',
-                        ]);
+                                'reason'   => $request->reason ?? 'Order cancelled',
+                            ]);
 
-                    if ($response->failed()) {
-                        \Log::error('Refund failed', [
-                            'status' => $response->status(),
-                            'body'   => $response->body(),
-                        ]);
+                        if ($response->failed()) {
+                            \Log::error('Refund failed', [
+                                'status' => $response->status(),
+                                'body'   => $response->body(),
+                            ]);
+                        }
+
                     }
 
                     //dd($response);
