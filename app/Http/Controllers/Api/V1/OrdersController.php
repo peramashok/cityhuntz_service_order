@@ -266,7 +266,7 @@ class OrdersController extends Controller
 
                     dd($response);
                 } catch (\Exception $th) {
-                    Log::error($ex->getMessage());
+                    Log::error($th->getMessage());
                 }
                 //send notification
                 try{
