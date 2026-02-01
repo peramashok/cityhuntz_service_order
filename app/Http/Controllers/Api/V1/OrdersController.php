@@ -246,6 +246,8 @@ class OrdersController extends Controller
 
                 //Refund amount
                 try {
+
+                    echo  env('PAYMENT_URL') . 'refunds/order_refund';
                     $response = Http::post(
                         env('PAYMENT_URL') . 'refunds/order_refund',
                         [
