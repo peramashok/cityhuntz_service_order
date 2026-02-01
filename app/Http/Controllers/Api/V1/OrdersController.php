@@ -246,16 +246,24 @@ class OrdersController extends Controller
 
                 //Refund amount
                 try {
+                    // $response = Http::post(
+                    //     env('PAYMENT_URL') . 'refunds/order_refund',
+                    //     [
+                    //         'order_id' => $order->id,
+                    //         'amount'=>$order->order_amount,
+                    //         'reason'=>$request->reason
+                    //     ]
+                    // );
 
-                    echo  env('PAYMENT_URL') . 'refunds/order_refund';
-                    $response = Http::post(
-                        env('PAYMENT_URL') . 'refunds/order_refund',
+                    $response = Http::asJson()->post(
+                        rtrim(env('PAYMENT_URL'), '/') . '/refunds/order_refund',
                         [
-                            'order_id' => $order->id,
-                            'amount'=>$order->order_amount,
-                            'reason'=>$request->reason
+                            'order_id' => (string) $order->id,
+                            'amount'   => (string) $order->order_amount,
+                            'reason'   => $request->reason,
                         ]
                     );
+
                     dd($response);
                 } catch (\Exception $th) {
                     Log::error($ex->getMessage());
