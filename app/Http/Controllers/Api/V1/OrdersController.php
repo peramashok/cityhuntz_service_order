@@ -246,18 +246,7 @@ class OrdersController extends Controller
 
                 //Refund amount
                 try {
-                    $response = Http::post(
-                       env('PAYMENT_URL') . 'refunds/order_refund',
-                        [
-                            'order_id' => $order->id,
-                            'amount'=>$order->order_amount,
-                            'reason'=>$request->reason
-                        ]
-                    );
-
-                  
-
-
+                     
                     $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/order_refund';
 
                     $response = Http::asJson()
@@ -280,12 +269,6 @@ class OrdersController extends Controller
                             'status' => $response->status(),
                             'body'   => $response->body(),
                         ]);
-
-                        return response()->json([
-                            'status'  => 'failed',
-                            'message' => 'Refund initiation failed',
-                            'error'   => $response->json() ?? $response->body(),
-                        ], 400);
                     }
 
                     //dd($response);
@@ -302,8 +285,6 @@ class OrdersController extends Controller
                             'status'=>'canceled'
                         ]
                     );
-
-                       
                 }catch(\Exception $ex){
                     \Log::error('Notification API failed', [
                         'message' => $ex->getMessage(),
