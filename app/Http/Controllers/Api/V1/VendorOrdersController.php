@@ -495,19 +495,53 @@ class VendorOrdersController extends Controller
                 $order->canceled_by='restaurant';
 
 
-                try {
-                    $response = Http::post(
-                        env('PAYMENT_URL') . 'refunds/order_refund',
-                        [
-                            'order_id' => $order->id,
-                            'amount'=>$order->order_amount,
-                            'reason'=>$request->reason
-                        ]
-                    );
-                } catch (\Exception $th) {
-                    Log::error($ex->getMessage());
-                }
+                // try {
+                //     $response = Http::post(
+                //         env('PAYMENT_URL') . 'refunds/order_refund',
+                //         [
+                //             'order_id' => $order->id,
+                //             'amount'=>$order->order_amount,
+                //             'reason'=>$request->reason
+                //         ]
+                //     );
+                // } catch (\Exception $th) {
+                //     Log::error($ex->getMessage());
+                // }
 
+
+                try {
+                    if($order->payment_status=='paid'){
+                        $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/order_refund';
+
+                        $response = Http::asJson()
+                            ->acceptJson()
+                            ->withOptions([
+                                'timeout' => 30,
+                            ])
+                            ->post($url, [
+                                // ⚠️ Use gateway order ID if available
+                                'order_id' => (string) $order->id,
+
+                                // ⚠️ Convert to smallest currency unit if required
+                                'amount'   => round((float) $order->total_amount, 2),
+
+                                'reason'   => $request->reason ?? 'Order cancelled',
+                            ]);
+
+                        if ($response->failed()) {
+                            \Log::error('Refund failed', [
+                                'status' => $response->status(),
+                                'body'   => $response->body(),
+                            ]);
+                        }
+
+                    }
+
+                    //dd($response);
+                } catch (\Exception $th) {
+                    Log::error($th->getMessage());
+                }
+                
                 Helpers::decreaseSellCount(order_details:$order->details);
 
             }
