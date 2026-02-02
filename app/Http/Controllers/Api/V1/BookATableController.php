@@ -671,62 +671,31 @@ class BookATableController extends Controller
             }
 
             if($request->status=='cancelled'){
-                try {
-
-
-                    // $response = Http::post(
-                    //     env('PAYMENT_URL') . 'refunds/booking_refund',
-                    //     [
-                    //         'booking_id' => $order->id,
-                    //         'amount'=>$order->total_amount 
-                    //     ]
-                    // );
-
+                  try {
                     if($order->payment_status=='Paid'){
-                        // $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/booking_refund';
-
-                        // $response = Http::asJson()
-                        //     ->acceptJson()
-                        //     ->withOptions([
-                        //         'timeout' => 30,
-                        //     ])
-                        //     ->post($url, [
-                        //         // ⚠️ Use gateway order ID if available
-                        //         'booking_id' => $order->id,
-
-                        //         // ⚠️ Convert to smallest currency unit if required
-                        //         'amount' => round((float) $order->total_amount, 2),
-                        //     ]);
-
-                        // if ($response->failed()) {
-                        //     \Log::error('Refund failed', [
-                        //         'status' => $response->status(),
-                        //         'body'   => $response->body(),
-                        //     ]);
-                        // }
-                         $url = rtrim(config('services.payment.url'), '/') . '/refunds/booking_refund';
-
-                            $response = Http::asJson()
-                                ->acceptJson()
-                                ->withOptions([
+                        
+                        $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/booking_refund';
+     
+                        $response = Http::asJson()
+                            ->acceptJson()
+                            ->withOptions([
                                     'timeout' => 30,
                                 ])
-                                ->post($url, [
-                                    'booking_id' => (string) $order->id,
-                                    'amount' => round((float) $order->total_amount, 2),
-                                ]);
+                            ->post($url, [
+                                'booking_id' => (string) $order->id,
+                                'amount' => round((float) $order->total_amount, 2),
+                            ]);
 
-                            if ($response->failed()) {
-                                \Log::error('Refund failed', [
-                                    'status' => $response->status(),
-                                    'body'   => $response->json() ?? $response->body(),
-                                ]);
-                            }
-                    }
-
-                   
+                        if ($response->failed()) {
+                            \Log::error('Refund failed', [
+                                'status' => $response->status(),
+                                'body'   => $response->json() ?? $response->body(),
+                            ]);
+                        }
+                       
+                    }  
                 } catch (\Exception $th) {
-                    Log::error($ex->getMessage());
+                    Log::error($th->getMessage());
                 }
             }
             try{
@@ -800,25 +769,25 @@ class BookATableController extends Controller
              try {
                 if($order->payment_status=='Paid'){
                     
-                    // $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/booking_refund';
+                    $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/booking_refund';
  
-                    // $response = Http::asJson()
-                    //     ->acceptJson()
-                    //     ->withOptions([
-                    //             'timeout' => 30,
-                    //         ])
-                    //     ->post($url, [
-                    //         'booking_id' => (string) $order->id,
-                    //         'amount' => round((float) $order->total_amount, 2),
-                    //     ]);
+                    $response = Http::asJson()
+                        ->acceptJson()
+                        ->withOptions([
+                                'timeout' => 30,
+                            ])
+                        ->post($url, [
+                            'booking_id' => (string) $order->id,
+                            'amount' => round((float) $order->total_amount, 2),
+                        ]);
 
-                    // if ($response->failed()) {
-                    //     \Log::error('Refund failed', [
-                    //         'status' => $response->status(),
-                    //         'body'   => $response->json() ?? $response->body(),
-                    //     ]);
-                    // }
-                    
+                    if ($response->failed()) {
+                        \Log::error('Refund failed', [
+                            'status' => $response->status(),
+                            'body'   => $response->json() ?? $response->body(),
+                        ]);
+                    }
+                   
                 }  
             } catch (\Exception $th) {
                 Log::error($th->getMessage());
@@ -832,7 +801,7 @@ class BookATableController extends Controller
                         'status'=>'cancelled'
                     ]
                 );
-                dd($response1);
+               
             }catch(\Exception $ex){
                 \Log::error('Notification API failed', [
                     'message' => $ex->getMessage(),
