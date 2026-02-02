@@ -799,47 +799,26 @@ class BookATableController extends Controller
 
              try {
                 if($order->payment_status=='Paid'){
+                    
                     // $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/booking_refund';
-
+ 
                     // $response = Http::asJson()
                     //     ->acceptJson()
                     //     ->withOptions([
-                    //         'timeout' => 30,
-                    //     ])
+                    //             'timeout' => 30,
+                    //         ])
                     //     ->post($url, [
-                    //         // ⚠️ Use gateway order ID if available
                     //         'booking_id' => (string) $order->id,
-
-                    //         // ⚠️ Convert to smallest currency unit if required
-                    //         'amount'   => $order->total_amount,
+                    //         'amount' => round((float) $order->total_amount, 2),
                     //     ]);
 
                     // if ($response->failed()) {
                     //     \Log::error('Refund failed', [
                     //         'status' => $response->status(),
-                    //         'body'   => $response->body(),
+                    //         'body'   => $response->json() ?? $response->body(),
                     //     ]);
                     // }
-
-                    $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/booking_refund';
-echo $url;
-                    $response = Http::asJson()
-                        ->acceptJson()
-                        ->withOptions([
-                                'timeout' => 30,
-                            ])
-                        ->post($url, [
-                            'booking_id' => (string) $order->id,
-                            'amount' => round((float) $order->total_amount, 2),
-                        ]);
-
-                    if ($response->failed()) {
-                        \Log::error('Refund failed', [
-                            'status' => $response->status(),
-                            'body'   => $response->json() ?? $response->body(),
-                        ]);
-                    }
-                    dd($response);
+                    
                 }  
             } catch (\Exception $th) {
                 Log::error($th->getMessage());
