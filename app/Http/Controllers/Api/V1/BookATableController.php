@@ -655,7 +655,7 @@ class BookATableController extends Controller
             $order[$request['status']] = now();
             $order->save();
 
-            if($request->status=='closed' ){
+            if($request->status=='closed' && $order->payment_status=='Paid'){
                 $tranArray=array(
                     "user_id"=>$vendor->id,
                     "transaction_id"=>"R".uniqid('', true),
@@ -674,13 +674,38 @@ class BookATableController extends Controller
                 try {
 
 
-                    $response = Http::post(
-                        env('PAYMENT_URL') . 'refunds/booking_refund',
-                        [
-                            'booking_id' => $order->id,
-                            'amount'=>$order->total_amount 
-                        ]
-                    );
+                    // $response = Http::post(
+                    //     env('PAYMENT_URL') . 'refunds/booking_refund',
+                    //     [
+                    //         'booking_id' => $order->id,
+                    //         'amount'=>$order->total_amount 
+                    //     ]
+                    // );
+
+                    if($order->payment_status=='Paid'){
+                        $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/booking_refund';
+
+                        $response = Http::asJson()
+                            ->acceptJson()
+                            ->withOptions([
+                                'timeout' => 30,
+                            ])
+                            ->post($url, [
+                                // ⚠️ Use gateway order ID if available
+                                'booking_id' => $order->id,
+
+                                // ⚠️ Convert to smallest currency unit if required
+                                'amount'=>$order->total_amount 
+                            ]);
+
+                        if ($response->failed()) {
+                            \Log::error('Refund failed', [
+                                'status' => $response->status(),
+                                'body'   => $response->body(),
+                            ]);
+                        }
+
+                    }
 
                    
                 } catch (\Exception $th) {
