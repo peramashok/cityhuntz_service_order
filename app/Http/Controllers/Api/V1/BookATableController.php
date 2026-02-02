@@ -821,8 +821,8 @@ class BookATableController extends Controller
                     //     ]);
                     // }
 
-                    $url = rtrim(config('services.payment.url'), '/') . '/refunds/booking_refund';
-
+                    $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/booking_refund';
+echo $url;
                     $response = Http::asJson()
                         ->acceptJson()
                         ->withOptions([
@@ -853,6 +853,7 @@ class BookATableController extends Controller
                         'status'=>'cancelled'
                     ]
                 );
+                dd($response1);
             }catch(\Exception $ex){
                 \Log::error('Notification API failed', [
                     'message' => $ex->getMessage(),
