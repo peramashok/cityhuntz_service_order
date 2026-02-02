@@ -259,7 +259,7 @@ class OrdersController extends Controller
                                 'order_id' => (string) $order->id,
 
                                 // ⚠️ Convert to smallest currency unit if required
-                                'amount'   => $order->order_amount,
+                                'amount'   => round((float) $order->total_amount, 2),
 
                                 'reason'   => $request->reason ?? 'Order cancelled',
                             ]);
