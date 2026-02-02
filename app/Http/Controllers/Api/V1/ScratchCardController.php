@@ -55,7 +55,7 @@ class ScratchCardController extends Controller
             // 30% chance to win and 70% loss
             $chance = rand(1, 100);
 
-            if ($chance <= 30) {
+            //if ($chance <= 30) {
                 //Get scratch details
                 $coupon = Coupon::whereIn('restaurant_id', $restaurantIds)
                     ->where('status', 1)
@@ -88,7 +88,7 @@ class ScratchCardController extends Controller
                         'coupon' => $coupon
                     ], 200);
                 }
-            }
+           // }
             //If loss the sent null
             return response()->json([
                 'status'=>'success',
