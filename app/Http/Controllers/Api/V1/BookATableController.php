@@ -803,6 +803,7 @@ class BookATableController extends Controller
                             'body'   => $response->body(),
                         ]);
                     }
+                    dd($response);
                 }  
             } catch (\Exception $th) {
                 Log::error($th->getMessage());
