@@ -434,14 +434,13 @@ class OrdersController extends Controller
         }
 
  
+        // $rest_sub=$restaurant?->restaurant_sub;
+        // if ($restaurant->restaurant_model == 'subscription' && isset($rest_sub)) {
+        //     if($rest_sub->max_order != "unlimited" && $rest_sub->max_order <= 0){
+        //         return  ['status'=>'failed', 'code' => 'order-confirmation-error', 'message' => translate('messages.Sorry_the_restaurant_is_unable_to_take_any_order_!')];
+        //     }
 
-        $rest_sub=$restaurant?->restaurant_sub;
-        if ($restaurant->restaurant_model == 'subscription' && isset($rest_sub)) {
-            if($rest_sub->max_order != "unlimited" && $rest_sub->max_order <= 0){
-                return  ['status'=>'failed', 'code' => 'order-confirmation-error', 'message' => translate('messages.Sorry_the_restaurant_is_unable_to_take_any_order_!')];
-            }
-
-        }
+        // }
         elseif( $restaurant->restaurant_model == 'unsubscribed'){
             return  ['status'=>'failed', 'code' => 'order-confirmation-model', 'message' => translate('messages.Sorry_the_restaurant_is_unable_to_take_any_order_!')];
         }
@@ -702,6 +701,7 @@ class OrdersController extends Controller
                 $food_id = $c['item_id'];
                 $code = 'food';
             }
+ 
 
             if($product->restaurant_id != $restaurantId){
                 return  ['status'=>'failed', 'code' => 'restaurant', 'message' => translate('messages.you_need_to_order_food_from_single_restaurant')];

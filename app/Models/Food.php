@@ -80,7 +80,7 @@ class Food extends Model
         ->whereHas('restaurant', function($query) {
             $query->where('status', 1)
                     ->where(function($query) {
-                        $query->where('restaurant_model', 'commission')
+                        $query->where('restaurant_model', 'subscription')
                                 ->orWhereHas('restaurant_sub', function($query) {
                                     $query->where(function($query) {
                                         $query->where('max_order', 'unlimited')->orWhere('max_order', '>', 0);
