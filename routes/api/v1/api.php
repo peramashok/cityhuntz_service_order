@@ -19,6 +19,16 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
 
     //Exports
 
+      Route::prefix('help_center')->controller(HelpCenterController::class)->group(function () {
+        Route::get('orders_list/{customer_id}', 'getLatestCustomerOrders');
+        Route::get('order_details/{order_id}', 'getOrderData');
+        Route::post('cancel_order', 'cancelOrder');
+
+        Route::get('reserved_tables/{customer_id}', 'getLatestCustomerReservedTables');
+        Route::get('reserved_table_details/{booking_id}', 'getReservedTableData');
+        Route::post('cancel_booking', 'cancelBooking');
+    });
+
     Route::prefix('orders')->group(function () {
         Route::get('order-report-export', 'ReportsController@order_report_export')->name('order-report');
 
@@ -123,9 +133,6 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
             // Route::put('offline-payment', 'OrderController@offline_payment');
             // Route::put('offline-payment-update', 'OrderController@update_offline_payment_info');
         });
-
-
-         
 
          Route::prefix('book_a_table')->controller(BookATableController::class)->group(function () {
              Route::get('book_now', 'book_now');
