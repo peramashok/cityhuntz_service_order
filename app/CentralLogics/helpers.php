@@ -796,7 +796,23 @@ class Helpers
 
         $variations = [];
         $categories = [];
-        $category_ids = gettype($data['category_ids']) == 'array' ? $data['category_ids'] : json_decode($data['category_ids'],true);
+      //  $category_ids = gettype($data['category_ids']) == 'array' ? $data['category_ids'] : json_decode($data['category_ids'],true);
+
+        $category_ids = $data['category_ids'] ?? [];
+
+        // If it's a JSON string, decode it
+        if (is_string($category_ids)) {
+            $category_ids = json_decode($category_ids, true);
+        }
+
+        // Final safety check
+        if (!is_array($category_ids)) {
+            $category_ids = [];
+        }
+
+        $categories = [];
+
+
         foreach ($category_ids as $value) {
             $category_name = Category::where('id',$value['id'])->pluck('name');
             $categories[] = ['id' => (string)$value['id'], 'position' => $value['position'], 'name'=>data_get($category_name,'0','NA')];
