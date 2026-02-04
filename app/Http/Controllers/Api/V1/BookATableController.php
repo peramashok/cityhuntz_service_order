@@ -655,7 +655,7 @@ class BookATableController extends Controller
             $order[$request['status']] = now();
             $order->save();
 
-            if($request->status=='closed' ){
+            if($request->status=='closed' && $order->payment_status=='Paid'){
                 $tranArray=array(
                     "user_id"=>$vendor->id,
                     "transaction_id"=>"R".uniqid('', true),
@@ -671,20 +671,31 @@ class BookATableController extends Controller
             }
 
             if($request->status=='cancelled'){
-                try {
+                  try {
+                    if($order->payment_status=='Paid'){
+                        
+                        $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/booking_refund';
+     
+                        $response = Http::asJson()
+                            ->acceptJson()
+                            ->withOptions([
+                                    'timeout' => 30,
+                                ])
+                            ->post($url, [
+                                'booking_id' => (string) $order->id,
+                                'amount' => round((float) $order->total_amount, 2),
+                            ]);
 
-
-                    $response = Http::post(
-                        env('PAYMENT_URL') . 'refunds/booking_refund',
-                        [
-                            'booking_id' => $order->id,
-                            'amount'=>$order->total_amount 
-                        ]
-                    );
-
-                   
+                        if ($response->failed()) {
+                            \Log::error('Refund failed', [
+                                'status' => $response->status(),
+                                'body'   => $response->json() ?? $response->body(),
+                            ]);
+                        }
+                       
+                    }  
                 } catch (\Exception $th) {
-                    Log::error($ex->getMessage());
+                    Log::error($th->getMessage());
                 }
             }
             try{
@@ -756,35 +767,47 @@ class BookATableController extends Controller
             $order->save();
 
              try {
+                if($order->payment_status=='Paid'){
+                    
+                    $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/booking_refund';
+ 
+                    $response = Http::asJson()
+                        ->acceptJson()
+                        ->withOptions([
+                                'timeout' => 30,
+                            ])
+                        ->post($url, [
+                            'booking_id' => (string) $order->id,
+                            'amount' => round((float) $order->total_amount, 2),
+                        ]);
 
-
-                 $response = Http::post(
-                        env('PAYMENT_URL') . 'refunds/booking_refund',
-                        [
-                            'booking_id' => $order->id,
-                            'amount'=>$order->total_amount 
-                        ]
-                    );
-
-                 
+                    if ($response->failed()) {
+                        \Log::error('Refund failed', [
+                            'status' => $response->status(),
+                            'body'   => $response->json() ?? $response->body(),
+                        ]);
+                    }
+                   
+                }  
             } catch (\Exception $th) {
                 Log::error($th->getMessage());
             }
 
-            // try{
-            //     $response = Http::post(
-            //         env('NOTIFICATION_URL') . 'notifications/update_booking_status',
-            //         [
-            //             'booking_id' => $order->id,
-            //             'status'=>'cancelled'
-            //         ]
-            //     );
-            // }catch(\Exception $ex){
-            //     \Log::error('Notification API failed', [
-            //         'message' => $ex->getMessage(),
-            //         'booking_id' => $order->id,
-            //     ]); 
-            // }
+            try{
+                $response1 = Http::post(
+                    env('NOTIFICATION_URL') . 'notifications/update_booking_status',
+                    [
+                        'booking_id' => $order->id,
+                        'status'=>'cancelled'
+                    ]
+                );
+               
+            }catch(\Exception $ex){
+                \Log::error('Notification API failed', [
+                    'message' => $ex->getMessage(),
+                    'booking_id' => $order->id,
+                ]); 
+            }
             return response()->json(['status'=>'success', 'message' => translate('messages.order_canceled_successfully')], 200);
         }
         return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.you_can_not_cancel_after_confirm')], 400);
