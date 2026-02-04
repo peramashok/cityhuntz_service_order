@@ -1188,10 +1188,34 @@ class Helpers
         } else {
             $variations = [];
             $categories = [];
-            foreach (json_decode($data?->category_ids) as $value) {
+            // foreach (json_decode($data?->category_ids) as $value) {
+            //     $categories[] = ['id' => (string)$value->id, 'position' => $value->position];
+            // }
+
+
+            //$data['category_ids'] = $categories;
+
+
+            $category_ids = $data['category_ids'] ?? [];
+
+            // If it's a JSON string, decode it
+            if (is_string($category_ids)) {
+                $category_ids = json_decode($category_ids, true);
+            }
+
+            // Final safety check
+            if (!is_array($category_ids)) {
+                $category_ids = [];
+            }
+
+            $categories = [];
+
+
+            foreach ($category_ids as $value) {
                 $categories[] = ['id' => (string)$value->id, 'position' => $value->position];
             }
             $data['category_ids'] = $categories;
+
 
             $data['add_ons'] = self::addon_data_formatting(AddOn::whereIn('id', json_decode($data['add_ons']))->active()->get(), true, $trans, $local);
             if ($data->title) {
