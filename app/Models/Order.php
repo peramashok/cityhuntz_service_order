@@ -26,7 +26,7 @@ class Order extends Model
         'scheduled' => 'integer',
         'restaurant_id' => 'integer',
         'details_count' => 'integer',
-        'processing_time' => 'integer',
+        'processing_time' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'dm_tips'=>'float',

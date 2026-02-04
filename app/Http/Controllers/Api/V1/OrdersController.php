@@ -662,8 +662,7 @@ class OrdersController extends Controller
         $order->transaction_reference = null;
         $order->order_note = $request['order_note'];
         $order->order_type = $request['order_type'];
-
-
+        $order->processing_time=$restaurant->delivery_time;
         $order->restaurant_id = $restaurantId;
         $order->delivery_charge = round($delivery_charge, config('round_up_to_digit'))??0;
         $order->original_delivery_charge = round($original_delivery_charge, config('round_up_to_digit'));
@@ -1076,40 +1075,39 @@ class OrdersController extends Controller
             })
             ->Notpos()->first();
 
-            if($order){
-
-                $restaurantArray=array(
-                    "id"=>$order['restaurant']->id,
-                    "name"=>$order['restaurant']->name,
-                    "longitude"=>$order['restaurant']->longitude,
-                    "latitude"=>$order['restaurant']->latitude,
-                    "address"=>$order['restaurant']->address,
-                    "city"=>$order['restaurant']->city,
-                    "state"=>$order['restaurant']->stateInfo?->name,
-                    "zipcode"=>$order['restaurant']->zipcode,
-                    "logo"=>$order['restaurant']->logo,
-                );
-                unset($order['restaurant']);
-                $order['restaurant'] = $restaurantArray;
-                $order['delivery_address'] = $order['delivery_address']?json_decode($order['delivery_address'],true):$order['delivery_address'];
-                $order['delivery_man'] = $order['delivery_man']?Helpers::deliverymen_data_formatting([$order['delivery_man']]):$order['delivery_man'];
-                $order['offline_payment'] =  isset($order->offline_payments) ? Helpers::offline_payment_formater($order->offline_payments) : null;
-                $order['is_reviewed'] =   $order->details_count >  Review::whereOrderId($request->order_id)->count() ? False :True ;
-                $order['is_dm_reviewed'] =  $order?->delivery_man ? DMReview::whereOrderId($order->id)->exists()  : True ;
-
-                if($order->subscription){
-                    $order->subscription['delivered_count']= (int) $order->subscription->logs()->whereOrderStatus('delivered')->count();
-                    $order->subscription['canceled_count']= (int) $order->subscription->logs()->whereOrderStatus('canceled')->count();
-                }
-
-                 
-            } else{
-                return response()->json([
+            if(is_null($order)){
+             return response()->json([
                    'status' => 'failed',
                    'code' => 'order_not_found', 
                    'message' => translate('messages.Order_not_found')
                 ], 404);
             }
+            
+            $restaurantArray=array(
+                "id"=>$order['restaurant']->id,
+                "name"=>$order['restaurant']->name,
+                "longitude"=>$order['restaurant']->longitude,
+                "latitude"=>$order['restaurant']->latitude,
+                "address"=>$order['restaurant']->address,
+                "city"=>$order['restaurant']->city,
+                "state"=>$order['restaurant']->stateInfo?->name,
+                "zipcode"=>$order['restaurant']->zipcode,
+                "logo"=>$order['restaurant']->logo,
+            );
+            unset($order['restaurant']);
+            $order['restaurant'] = $restaurantArray;
+           
+            $order['delivery_address'] = $order['delivery_address']?json_decode($order['delivery_address'],true):$order['delivery_address'];
+            $order['delivery_man'] = $order['delivery_man']?Helpers::deliverymen_data_formatting([$order['delivery_man']]):$order['delivery_man'];
+            $order['offline_payment'] =  isset($order->offline_payments) ? Helpers::offline_payment_formater($order->offline_payments) : null;
+            $order['is_reviewed'] =   $order->details_count >  Review::whereOrderId($request->order_id)->count() ? False :True ;
+            $order['is_dm_reviewed'] =  $order?->delivery_man ? DMReview::whereOrderId($order->id)->exists()  : True ;
+
+            if($order->subscription){
+                $order->subscription['delivered_count']= (int) $order->subscription->logs()->whereOrderStatus('delivered')->count();
+                $order->subscription['canceled_count']= (int) $order->subscription->logs()->whereOrderStatus('canceled')->count();
+            }
+
             return response()->json([
                'status' => 'success',
                'data' => $order
