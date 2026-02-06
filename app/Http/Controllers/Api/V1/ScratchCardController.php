@@ -59,12 +59,16 @@ class ScratchCardController extends Controller
                 //Get scratch details
                 $coupon = Coupon::whereIn('restaurant_id', $restaurantIds)
                     ->where('status', 1)
+                    ->where('is_assigned', 0)
                     ->where('coupon_type', 'scratch_card')
                     ->inRandomOrder()
                     ->first();
 
                 //Save into customer account
                 if ($coupon) {
+
+                    $coupon->is_assigned=1;
+                    $coupon->save();
 
                     $scrtchCard=new UserScratchCard();
                     $scrtchCard->user_id=auth()->user()->id;
