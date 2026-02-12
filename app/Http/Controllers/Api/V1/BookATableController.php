@@ -280,8 +280,8 @@ class BookATableController extends Controller
                 $total=$total+$single->price;
             }
 
-            $paymentSetting=PaymentSetting::where('id', 1)->first();
-            $platformFee=$paymentSetting->platform_fee;
+            $paymentSetting=PaymentSetting::where('key', 'platform_fee')->first();
+            $platformFee=$paymentSetting->value;
 
             $platformAmount=($total*$platformFee)/100;
 
