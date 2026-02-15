@@ -55,7 +55,7 @@ class CartController extends Controller
                 $data->add_on_qtys, false, app()->getLocale());
                 return $data;
             });
-            $paymentSettings=PaymentSetting::where('id', 1)->first();
+            $paymentSettings=PaymentSetting::where('id', 7)->first();
 
             $othercharges=$this->getCharages($restaurantIds, $request);
 
