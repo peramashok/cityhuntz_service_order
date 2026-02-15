@@ -419,11 +419,12 @@ class VendorOrdersController extends Controller
                 $img_names = [];
                 $images = [];
                 if (!empty($request->file('order_proof'))) {
-                    foreach ($request->order_proof as $img) {
+                    foreach ($request->order_proof as $file) {
+
                         // $image_name = Helpers::upload('order/', 'png', $img);
                         $url = env('OBJECT_APIURL');
                         $modifiedUrl = str_replace('/api/v1', '', $url);
-                        $file = $request->file('image');
+                        
                         $imagePhotoUrl = "";
                         $imageDocuUrl = "";
                          

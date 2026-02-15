@@ -913,9 +913,10 @@ class OrdersController extends Controller
 
             $total=$order_amount + $order->dm_tips;
 
-            $paymentSettings=PaymentSetting::where('id', 1)->first();
+            $paymentSettings=PaymentSetting::where('key', 'platform_fee')->first();
+            $platform_fee=$paymentSettings->value;
 
-            $processing_fee = $total * ($paymentSettings->platform_fee)/100; 
+            $processing_fee = $total * ($platform_fee)/100; 
 
             $order->processing_charges = round($processing_fee,2);
 
