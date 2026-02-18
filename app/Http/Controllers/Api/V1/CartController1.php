@@ -19,10 +19,7 @@ use App\Models\Coupon;
 use App\Models\Restaurant;
 use MatanYadaev\EloquentSpatial\Objects\Point;
 use Illuminate\Support\Facades\DB;
-use App\Models\RestaurantDeliveryCharge;
-use App\Models\DeliveryChargesSetting;
-
-class CartController extends Controller
+class CartController1 extends Controller
 {
     public function get_carts(Request $request)
     {
@@ -542,7 +539,7 @@ class CartController extends Controller
     }
 
 
-    private function getCharagesOld18022026($restaurantIds, $request)
+    private function getCharages($restaurantIds, $request)
     {
 
         $deliveryCharge = 0;
@@ -550,7 +547,18 @@ class CartController extends Controller
         for ($i=0; $i <count($restaurantIds) ; $i++) { 
            
             $restaurant_id=$restaurantIds[$i];
-            
+            // $restaurant = Restaurant::selectRaw("
+            //     (6371 * acos(
+            //         cos(radians(?)) * 
+            //         cos(radians(restaurants.latitude)) *
+            //         cos(radians(restaurants.longitude) - radians(?)) +
+            //         sin(radians(?)) * sin(radians(restaurants.latitude))
+            //     )) AS distance
+            // ", [$request->latitude, $request->longitude, $request->latitude])
+            // ->where('id', $restaurant_id)
+            // ->first();
+
+
             $restaurant = Restaurant::selectRaw("
                 (3959 * acos(
                     cos(radians(?)) * 
@@ -592,6 +600,8 @@ class CartController extends Controller
             $max_cod_order_amount_value=  0;
             $increased=0;
             $distance_data = 0;
+
+
            
             $deliveryCharges = RestaurantDeliveryCharge::where('restaurant_id', $restaurant->id)->orderby('miles', 'ASC')->get();
 
@@ -705,147 +715,6 @@ class CartController extends Controller
             $OriginalDeliveryCharge =$OriginalDeliveryCharge+round($original_delivery_charge, config('round_up_to_digit'));
         }
         
-        $data['delivered_charge']=$deliveryCharge;
-        $data['original_delivery_charge']=$OriginalDeliveryCharge;
-
-        return $data;
-    }
-
-
-    private function getCharages($restaurantIds, $request)
-    {
-
-        $deliveryCharge = 0;
-        $OriginalDeliveryCharge = 0;
-        $distance=0;
-
-        for ($i=0; $i <count($restaurantIds) ; $i++) { 
-           
-            $restaurant_id=$restaurantIds[$i];
-             
-            // -------------------------------------------------
-            // 1️⃣ GET RESTAURANT WITH DISTANCE (MILES)
-            // -------------------------------------------------
-            $restaurant = Restaurant::selectRaw("
-                restaurants.*,
-                (3959 * acos(
-                    cos(radians(?)) *
-                    cos(radians(restaurants.latitude)) *
-                    cos(radians(restaurants.longitude) - radians(?)) +
-                    sin(radians(?)) *
-                    sin(radians(restaurants.latitude))
-                )) AS distance
-            ", [$request->latitude, $request->longitude, $request->latitude])
-            ->where('id', $restaurant_id)
-            ->first();
-
-            if (!$restaurant) {
-                return [
-                    'status' => false,
-                    'message' => 'Restaurant not found'
-                ];
-            }
-
-            $restaurantDistance = (float) $restaurant->distance;
-            $distance=$distance+$restaurantDistance;
-
-            // -------------------------------------------------
-            // 2️⃣ CREATE DELIVERY SLABS IF NOT EXISTS
-            // -------------------------------------------------
-            $slabExists = RestaurantDeliveryCharge::where('restaurant_id', $restaurant->id)->exists();
-
-            if (!$slabExists) {
-
-                $defaultSlabs = DeliveryChargesSetting::all();
-
-                $insertData = [];
-
-                foreach ($defaultSlabs as $record) {
-                    $insertData[] = [
-                        'restaurant_id' => $restaurant->id,
-                        'miles'         => $record->miles,
-                        'price'         => $record->price,
-                        'created_at'    => now(),
-                        'updated_at'    => now(),
-                    ];
-                }
-
-                RestaurantDeliveryCharge::insert($insertData);
-            }
-
-
-            // -------------------------------------------------
-            // 3️⃣ FETCH DELIVERY SLABS
-            // -------------------------------------------------
-            $deliverySlabs = RestaurantDeliveryCharge::where('restaurant_id', $restaurant->id)
-                ->orderBy('miles', 'ASC')
-                ->get();
-
-
-            $delivery_charge = null;
-            $original_delivery_charge = 0;
-            $increased_percent = 0;
-
-            $data = Helpers::vehicle_extra_charge(distance_data:$restaurantDistance);
-            $extra_charges = 0;//(float) (isset($data) ? $data['extra_charge']  : 0);
-            $vehicle_id= (isset($data) ? (int) $data['vehicle_id']  : null);
-
-            // -------------------------------------------------
-            // 4️⃣ CHECK FREE DELIVERY COUPON
-            // -------------------------------------------------
-            if (!empty($request->coupon_code)) {
-
-                $coupon = Coupon::active()
-                    ->where('code', $request->coupon_code)
-                    ->first();
-
-                if ($coupon && $coupon->coupon_type === 'free_delivery') {
-                    $delivery_charge = 0;
-                }
-            }
-
-
-            // -------------------------------------------------
-            // 5️⃣ TAKE AWAY / DINE IN → ZERO DELIVERY
-            // -------------------------------------------------
-            if (in_array($request->order_type, ['take_away', 'dine_in'])) {
-
-                $delivery_charge = 0;
-                $original_delivery_charge = 0;
-
-            } else {
-
-                // -------------------------------------------------
-                // 6️⃣ SLAB BASED DELIVERY CALCULATION
-                // -------------------------------------------------
-                if (!isset($delivery_charge)) {
-
-                    foreach ($deliverySlabs as $slab) {
-
-                        if ($restaurantDistance <= $slab->miles) {
-                            $delivery_charge = $slab->price;
-                            break;
-                        }
-                    }
-
-                    // If distance exceeds all slabs → use highest slab
-                    if ($delivery_charge === null && $deliverySlabs->count() > 0) {
-                        $delivery_charge = $deliverySlabs->last()->price;
-                    }
-                }
-
-                $original_delivery_charge = $delivery_charge;
-            }
-
-
-            // -------------------------------------------------
-            // 8️⃣ ROUND VALUES
-            // -------------------------------------------------
-            $deliveryCharge = round($delivery_charge ?? 0, config('round_up_to_digit'));
-            $OriginalDeliveryCharge = round($original_delivery_charge ?? 0, config('round_up_to_digit'));
-        }
-        
-        $data['distance']=$distance;
         $data['delivered_charge']=$deliveryCharge;
         $data['original_delivery_charge']=$OriginalDeliveryCharge;
 

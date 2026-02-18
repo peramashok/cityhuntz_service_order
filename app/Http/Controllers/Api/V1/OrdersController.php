@@ -39,6 +39,8 @@ use App\Models\PaymentSetting;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Models\RestaurantDeliveryCharge;
+use App\Models\DeliveryChargesSetting;
 
 class OrdersController extends Controller
 {
@@ -443,24 +445,59 @@ class OrdersController extends Controller
         $max_cod_order_amount_value=$dataArray['max_cod_order_amount_value'];
         $increased=$dataArray['increased'];
         $distance_data=$dataArray['distance_data'];
-
+        $distance=0;
        
-        $restaurant = Restaurant::with(['discount', 'restaurant_sub'])->selectRaw('*, IF(((select count(*) from `restaurant_schedule` where `restaurants`.`id` = `restaurant_schedule`.`restaurant_id` and `restaurant_schedule`.`day` = '.$schedule_at->format('w').' and `restaurant_schedule`.`opening_time` < "'.$schedule_at->format('H:i:s').'" and `restaurant_schedule`.`closing_time` >"'.$schedule_at->format('H:i:s').'") > 0), true, false) as open')->where('id', $request->restaurant_id)->first();
+        // $restaurant = Restaurant::with(['discount', 'restaurant_sub'])->selectRaw('*, IF(((select count(*) from `restaurant_schedule` where `restaurants`.`id` = `restaurant_schedule`.`restaurant_id` and `restaurant_schedule`.`day` = '.$schedule_at->format('w').' and `restaurant_schedule`.`opening_time` < "'.$schedule_at->format('H:i:s').'" and `restaurant_schedule`.`closing_time` >"'.$schedule_at->format('H:i:s').'") > 0), true, false) as open')->where('id', $restaurantId)->first();
 
-       // $restaurant = Restaurant::with(['discount', 'restaurant_sub'])->where('id', $restaurantId)->open()->first();
+
+        $restaurant = Restaurant::with(['discount', 'restaurant_sub'])
+            ->selectRaw("
+                restaurants.*,
+
+                /* OPEN STATUS */
+                IF((
+                    SELECT COUNT(*)
+                    FROM restaurant_schedule
+                    WHERE restaurants.id = restaurant_schedule.restaurant_id
+                    AND restaurant_schedule.day = ?
+                    AND restaurant_schedule.opening_time < ?
+                    AND restaurant_schedule.closing_time > ?
+                ) > 0, true, false) as open,
+
+                /* DISTANCE IN MILES (SAFE) */
+                ROUND(
+                    (3959 * acos(
+                        LEAST(1.0,
+                            cos(radians(?)) *
+                            cos(radians(restaurants.latitude)) *
+                            cos(radians(restaurants.longitude) - radians(?)) +
+                            sin(radians(?)) *
+                            sin(radians(restaurants.latitude))
+                        )
+                    )), 2
+                ) AS distance
+
+            ", [
+                $schedule_at->format('w'),
+                $schedule_at->format('H:i:s'),
+                $schedule_at->format('H:i:s'),
+
+                $request->latitude,
+                $request->longitude,
+                $request->latitude
+            ])
+            ->where('id', $restaurantId)
+            ->first();
+
+          $restaurantDistance = (float) $restaurant->distance;
+          $distance=$distance+$restaurantDistance;
+          
 
         if(!$restaurant) {
             return  ['status'=>'failed', 'code' => 'order_time', 'message' => translate('messages.restaurant_not_found')];
         }
 
- 
-        // $rest_sub=$restaurant?->restaurant_sub;
-        // if ($restaurant->restaurant_model == 'subscription' && isset($rest_sub)) {
-        //     if($rest_sub->max_order != "unlimited" && $rest_sub->max_order <= 0){
-        //         return  ['status'=>'failed', 'code' => 'order-confirmation-error', 'message' => translate('messages.Sorry_the_restaurant_is_unable_to_take_any_order_!')];
-        //     }
-
-        // }
+  
         elseif( $restaurant->restaurant_model == 'unsubscribed'){
             return  ['status'=>'failed', 'code' => 'order-confirmation-model', 'message' => translate('messages.Sorry_the_restaurant_is_unable_to_take_any_order_!')];
         }
@@ -517,110 +554,71 @@ class OrdersController extends Controller
             }
         }
 
+        $deliveryChargesCount = RestaurantDeliveryCharge::where('restaurant_id', $restaurantId)->orderby('miles', 'ASC')->count();
+            if (!$deliveryChargesCount) {
+                  $deliveryCharges = DeliveryChargesSetting::all();
 
-        $data = Helpers::vehicle_extra_charge(distance_data:$distance_data);
-        $extra_charges = (float) (isset($data) ? $data['extra_charge']  : 0);
-        $vehicle_id= (isset($data) ? (int) $data['vehicle_id']  : null);
+                $insertData = [];
 
-        if($request->latitude && $request->longitude){
-            $zone = Zone::where('id', $restaurant->zone_id)->whereContains('coordinates', new Point($request->latitude, $request->longitude, POINT_SRID))->first();            
-            if(!$zone)
-            {
-                $errors = [];
-                array_push($errors, ['code' => 'coordinates', 'message' => translate('messages.out_of_coverage')]);
-                return  [
-                    'status'=>'failed',
-                    'errors' => $errors
-                ];
-            }
-            if( $zone->per_km_shipping_charge && $zone->minimum_shipping_charge ) {
-                $per_km_shipping_charge = $zone->per_km_shipping_charge;
-                $minimum_shipping_charge = $zone->minimum_shipping_charge;
-                $maximum_shipping_charge = $zone->maximum_shipping_charge;
-                $max_cod_order_amount_value= $zone->max_cod_order_amount;
-                if($zone->increased_delivery_fee_status == 1){
-                    $increased=$zone->increased_delivery_fee ?? 0;
+                foreach ($deliveryCharges as $record) {
+                    $insertData[] = [
+                        'restaurant_id' => $restaurantId,
+                        'miles'          => $record->miles,
+                        'price'   => $record->price,
+                        'created_at'    => now(),
+                        'updated_at'    => now(),
+                    ];
                 }
+
+                RestaurantDeliveryCharge::insert($insertData);
             }
-        }
+
+         // -------------------------------------------------
+            // 3️⃣ FETCH DELIVERY SLABS
+            // -------------------------------------------------
+            $deliverySlabs = RestaurantDeliveryCharge::where('restaurant_id', $restaurantId)
+                ->orderBy('miles', 'ASC')
+                ->get();
 
 
-        // if(($request['order_type'] != 'take_away' || $request['order_type'] != 'dine_in') && !$restaurant->free_delivery &&  !isset($delivery_charge) && ($restaurant->restaurant_model == 'subscription' && isset($restaurant->restaurant_sub) && $restaurant->restaurant_sub->self_delivery == 1  || $restaurant->restaurant_model == 'commission' &&  $restaurant->self_delivery_system == 1 )){
+            $data = Helpers::vehicle_extra_charge(distance_data:$distance_data);
+            $extra_charges = (float) (isset($data) ? $data['extra_charge']  : 0);
+            $vehicle_id= (isset($data) ? (int) $data['vehicle_id']  : null);
 
-        if (
-            !in_array($request['order_type'], ['take_away', 'dine_in'])
-            && !$restaurant->free_delivery
-            && !isset($delivery_charge)
-            && (
-                ($restaurant->restaurant_model == 'subscription'
-                    && isset($restaurant->restaurant_sub)
-                    && $restaurant->self_delivery_system == 1)
-                // ||
-                // ($restaurant->restaurant_model == 'commission'
-                //     && $restaurant->self_delivery_system == 1)
-            )
-        ) {
-                $per_km_shipping_charge = $restaurant->per_km_shipping_charge;
-                $minimum_shipping_charge = $restaurant->minimum_shipping_charge;
-                $maximum_shipping_charge = $restaurant->maximum_shipping_charge;
-                $extra_charges= 0;
-                $vehicle_id=null;
-                $increased=0;
-        }
+        
+             // -------------------------------------------------
+            // 5️⃣ TAKE AWAY / DINE IN → ZERO DELIVERY
+            // -------------------------------------------------
+            if (in_array($request->order_type, ['take_away', 'dine_in'])) {
 
-        if($restaurant->free_delivery || $free_delivery_by == 'vendor' ){
-            $per_km_shipping_charge = $restaurant->per_km_shipping_charge;
-            $minimum_shipping_charge = $restaurant->minimum_shipping_charge;
-            $maximum_shipping_charge = $restaurant->maximum_shipping_charge;
-            $extra_charges= 0;
-            $vehicle_id=null;
-            $increased=0;
-        }
+                $delivery_charge = 0;
+                $original_delivery_charge = 0;
 
-        $original_delivery_charge = ($request->distance * $per_km_shipping_charge > $minimum_shipping_charge) ? $request->distance * $per_km_shipping_charge + $extra_charges  : $minimum_shipping_charge + $extra_charges;
+            } else {
 
-        //if($request['order_type'] == 'take_away' || $request['order_type'] == 'dine_in')
+                // -------------------------------------------------
+                // 6️⃣ SLAB BASED DELIVERY CALCULATION
+                // -------------------------------------------------
+                if (!isset($delivery_charge)) {
 
-        if(in_array($request['order_type'], ['take_away', 'dine_in', 'book_a_table']))
-        {
-            $per_km_shipping_charge = 0;
-            $minimum_shipping_charge = 0;
-            $maximum_shipping_charge = 0;
-            $extra_charges= 0;
-            $distance_data = 0;
-            $vehicle_id=null;
-            $increased=0;
-            $original_delivery_charge =0;
-        }
+                    foreach ($deliverySlabs as $slab) {
 
-        if ( $maximum_shipping_charge  > $minimum_shipping_charge  && $original_delivery_charge >  $maximum_shipping_charge ){
-            $original_delivery_charge = $maximum_shipping_charge;
-        }
-        else{
-            $original_delivery_charge = $original_delivery_charge;
-        }
+                        if ($restaurantDistance <= $slab->miles) {
+                            $delivery_charge = $slab->price;
+                            break;
+                        }
+                    }
 
-        if(!isset($delivery_charge)){
-            $delivery_charge = ($request->distance * $per_km_shipping_charge > $minimum_shipping_charge) ? $request->distance * $per_km_shipping_charge : $minimum_shipping_charge;
-            if ( $maximum_shipping_charge  > $minimum_shipping_charge  && $delivery_charge + $extra_charges >  $maximum_shipping_charge ){
-                $delivery_charge =$maximum_shipping_charge;
+                    // If distance exceeds all slabs → use highest slab
+                    if ($delivery_charge === null && $deliverySlabs->count() > 0) {
+                        $delivery_charge = $deliverySlabs->last()->price;
+                    }
+                }
+
+                $original_delivery_charge = $delivery_charge;
             }
-            else{
-                $delivery_charge =$extra_charges + $delivery_charge;
-            }
-        }
 
 
-        if($increased > 0 ){
-            if($delivery_charge > 0){
-                $increased_fee = ($delivery_charge * $increased) / 100;
-                $delivery_charge = $delivery_charge + $increased_fee;
-            }
-            if($original_delivery_charge > 0){
-                $increased_fee = ($original_delivery_charge * $increased) / 100;
-                $original_delivery_charge = $original_delivery_charge + $increased_fee;
-            }
-        }
         $address = [
             'contact_person_name' => $request->contact_person_name ? $request->contact_person_name : ($request->user?$request->user->f_name . ' ' . $request->user->l_name:''),
             'contact_person_number' => $request->contact_person_number ? ($request->user ? $request->contact_person_number :str_replace('+', '', $request->contact_person_number)) : ($request->user?$request->user->phone:''),
