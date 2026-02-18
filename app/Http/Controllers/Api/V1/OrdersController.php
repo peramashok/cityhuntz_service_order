@@ -599,8 +599,7 @@ class OrdersController extends Controller
                 // -------------------------------------------------
                 // 6️⃣ SLAB BASED DELIVERY CALCULATION
                 // -------------------------------------------------
-                if (!isset($delivery_charge)) {
-
+               if ($delivery_charge === null) {
                     foreach ($deliverySlabs as $slab) {
 
                         if ($restaurantDistance <= $slab->miles) {
@@ -1014,7 +1013,7 @@ class OrdersController extends Controller
             return [
                 'status'=>'success', 
                 'order_id' => $order->id,
-                'total_ammount' => $total_price+$order->delivery_charge+$tax_a
+                'total_ammount' => $order->order_amount
             ];
 
         } catch (\Exception $e) {

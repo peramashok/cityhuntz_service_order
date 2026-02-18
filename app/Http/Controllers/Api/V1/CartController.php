@@ -818,7 +818,7 @@ class CartController extends Controller
                 // -------------------------------------------------
                 // 6️⃣ SLAB BASED DELIVERY CALCULATION
                 // -------------------------------------------------
-                if (!isset($delivery_charge)) {
+                if ($delivery_charge === null) {
 
                     foreach ($deliverySlabs as $slab) {
 
@@ -836,14 +836,13 @@ class CartController extends Controller
 
                 $original_delivery_charge = $delivery_charge;
             }
-
-
-            // -------------------------------------------------
-            // 8️⃣ ROUND VALUES
-            // -------------------------------------------------
-            $deliveryCharge = round($delivery_charge ?? 0, config('round_up_to_digit'));
-            $OriginalDeliveryCharge = round($original_delivery_charge ?? 0, config('round_up_to_digit'));
         }
+
+        // -------------------------------------------------
+        // 8️⃣ ROUND VALUES
+        // -------------------------------------------------
+        $deliveryCharge = round($delivery_charge ?? 0, config('round_up_to_digit'));
+        $OriginalDeliveryCharge = round($original_delivery_charge ?? 0, config('round_up_to_digit'));
         
         $data['distance']=$distance;
         $data['delivered_charge']=$deliveryCharge;
