@@ -668,6 +668,13 @@ class BookATableController extends Controller
                 );
 
                 WalletTransaction::create($tranArray);
+
+
+                
+                //Referrral bonus adding
+                $customerData=User::where('is', $order->user_id)->first();
+                Helpers::firstOrderReferralBonus($customerData);
+
             }
 
             if($request->status=='cancelled'){

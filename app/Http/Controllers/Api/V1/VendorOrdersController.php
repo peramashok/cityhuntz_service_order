@@ -341,7 +341,7 @@ class VendorOrdersController extends Controller
                 ], 403);
             }
 
-              if( $request['status']=='handover' && $order->otp != $request['otp'])
+            if( $request['status']=='handover' && $order->otp != $request['otp'])
             {
                 return response()->json([
                     'status'=>'failed',
@@ -459,7 +459,12 @@ class VendorOrdersController extends Controller
                     "created_at"=>now()
                 );
 
+                
                 WalletTransaction::create($tranArray);
+                
+                //Referrral bonus adding
+                $customerData=User::where('is', $order->user_id)->first();
+                Helpers::firstOrderReferralBonus($customerData);
 
                 // Send notification for adding money to vendor wallet
                 try {

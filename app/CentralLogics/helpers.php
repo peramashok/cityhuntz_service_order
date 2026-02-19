@@ -35,6 +35,8 @@ use App\Models\Currency;
 use App\Models\VisitorLog;
 use App\Models\CashBack;
 use App\Models\NotificationMessage;
+use App\Models\WalletTransaction;
+use App\Models\ReservedTable;
 
 class Helpers
 { 
@@ -1814,4 +1816,47 @@ class Helpers
         }
     }
 
+
+    public static function firstOrderReferralBonus($userData)
+    {
+
+        $referreUserData=User::where('id', $userData->ref_by)->first();
+        
+        if (!$referreUserData || $referreUserData->status != 1) {
+            return 'no_referrals';
+        }
+
+        $orderCount=Order::where('user_id', $userData->id)->count();
+
+        $reservedTableCount=ReservedTable::where('user_id', $userData->id)->count();
+
+        if ($orderCount < 1 && $reservedTableCount < 1) {
+            return null; // Stop here if no order or reservation
+        }
+
+        $referralAmount=0;
+        $subscriptionAmount=0;
+        $userType='';
+         
+        $paymentReferralData=PaymentSetting::where('id', 5)->first();
+        $referralAmount=$paymentReferralData->value;
+        
+        $userType='User';
+    
+        
+        if($referralAmount>0){
+            $tranArray=array(
+                "user_id"=>$userData->ref_by,
+                "transaction_id"=>"R".uniqid('', true),
+                "credit"=>$referralAmount,
+                "transaction_type"=>'Referral User',
+                "reference"=>$referreUserData->phone,
+                "created_at"=>now()
+            );
+
+            WalletTransaction::insert($tranArray);
+        }
+        
+        return 'success';
+    }
 }
