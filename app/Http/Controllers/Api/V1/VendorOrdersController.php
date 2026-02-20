@@ -257,9 +257,33 @@ class VendorOrdersController extends Controller
                 'order_proof' =>'nullable|array|max:5',
             ]);
              
-            // $validator->sometimes('otp', 'required', function ($request) {
-            //     return ($request['status']=='delivered');
+            
+            $order = Order::where('id', $request->order_id)
+                ->with(['subscription_logs','details','restaurant'])
+                ->first();
+            if(is_null($order)){
+                return response()->json([
+                    'errors' => [
+                        ['code' => 'order-not-found', 'message' => translate('messages.order_not_found')]
+                    ]
+                ], 403);
+            }
+
+            // $validator->sometimes('otp', 'required', function ($input) use ($order) {
+            //     return (
+            //         $input->status == 'delivered' &&
+            //         $order &&
+            //         $order->order_type == 'delivery'
+            //     );
             // });
+
+             $validator->sometimes('otp', 'required', function ($input) use ($order) {
+                return (
+                    $input->status == 'handover' &&
+                    $order &&
+                    $order->order_type == 'delivery'
+                );
+            });
 
             if ($validator->fails()) {
                 return response()->json(['errors' => Helpers::error_processor($validator)], 403);
@@ -331,7 +355,7 @@ class VendorOrdersController extends Controller
                 ], 403);
             }
 
-            if($request['status']=='delivered' && !in_array($order['order_type'],['dine_in','take_away']) && !$data)
+            if($request['status']=='delivered' && in_array($order['order_type'],['dine_in','take_away']) && !$data)
             {
                 return response()->json([
                     'status'=>'failed',
@@ -341,17 +365,17 @@ class VendorOrdersController extends Controller
                 ], 403);
             }
 
-            // if( $request['status']=='handover' && $order->otp != $request['otp'])
-            // {
-            //     return response()->json([
-            //         'status'=>'failed',
-            //         'errors' => [
-            //             ['code' => 'otp', 'message' => 'Not matched']
-            //         ]
-            //     ], 403);
-            // }
+            if( $request['status']=='handover' && $order->otp != $request['otp'])
+            {
+                return response()->json([
+                    'status'=>'failed',
+                    'errors' => [
+                        ['code' => 'otp', 'message' => 'Not matched']
+                    ]
+                ], 403);
+            }
 
-            // if(Config::get('order_delivery_verification')==1 && $request['status']=='delivered' && $order->otp != $request['otp'])
+            // if(Config::get('order_delivery_verification')==1 && $request['status']=='handover' && $order->otp != $request['otp'])
             // {
             //     return response()->json([
             //         'status'=>'failed',
