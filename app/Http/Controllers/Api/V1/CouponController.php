@@ -94,36 +94,37 @@ class CouponController extends Controller
 
         try {
             $coupon = Coupon::active()->where(['code' => $request['code']])->first();
-            if (isset($coupon)) {
-                $staus = CouponLogic::is_valide($coupon, $request->user()->id ,$request['restaurant_id']);
-
-                switch ($staus) {
-                case 200:
-                    return response()->json($coupon, 200);
-                case 406:
-                    return response()->json(['status'=>'failed','code' => 'coupon', 'message' => translate('messages.coupon_usage_limit_over')], 406);
-                case 407:
-                    return response()->json(['status'=>'failed','code' => 'coupon', 'message' => translate('messages.coupon_expire')], 407);
-                case 408:
-                    return response()->json([  
-                        'status'=>'failed',
-                        'code' => 'coupon',
-                        'message' => translate('messages.You_are_not_eligible_for_this_coupon')
-                    ], 403);
-                default:
-                    return response()->json([
-                          'status'=>'failed',
-                        'code' => 'coupon', 
-                        'message' => translate('messages.not_found')
-                    ], 400);
-                }
-            } else {
-                return response()->json([
+            if(is_null($coupon)){
+                 return response()->json([
                      'status'=>'failed',
                      'code' => 'coupon', 
                      'message' => translate('messages.not_found')
                 ], 400);
             }
+        
+            $staus = CouponLogic::is_valide($coupon, $request->user()->id ,$request['restaurant_id']);
+
+            switch ($staus) {
+            case 200:
+                return response()->json($coupon, 200);
+            case 406:
+                return response()->json(['status'=>'failed','code' => 'coupon', 'message' => translate('messages.coupon_usage_limit_over')], 406);
+            case 407:
+                return response()->json(['status'=>'failed','code' => 'coupon', 'message' => translate('messages.coupon_expire')], 407);
+            case 408:
+                return response()->json([  
+                    'status'=>'failed',
+                    'code' => 'coupon',
+                    'message' => translate('messages.You_are_not_eligible_for_this_coupon')
+                ], 403);
+            default:
+                return response()->json([
+                    'status'=>'failed',
+                    'code' => 'coupon', 
+                    'message' => "Coupon not applicable for this order"
+                ], 400);
+            }
+             
         } catch (\Exception $e) {
             return response()->json(['status'=>'failed', 'message' => $e->getMessage()], 500);
         }
