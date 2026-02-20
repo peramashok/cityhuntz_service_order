@@ -8,11 +8,11 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Scopes\ZoneScope;
-
+use Illuminate\Database\Eloquent\SoftDeletes;
 class DeliveryMan extends Authenticatable
 {
     protected $table="users";
-    use Notifiable;
+    use Notifiable, SoftDeletes;
 
     protected $casts = [
         'vehicle_id' => 'integer',
