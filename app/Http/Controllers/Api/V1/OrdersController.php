@@ -1084,6 +1084,7 @@ class OrdersController extends Controller
             $restaurantArray=array(
                 "id"=>$order['restaurant']->id,
                 "name"=>$order['restaurant']->name,
+                "phone"=>$order['restaurant']->phone,
                 "longitude"=>$order['restaurant']->longitude,
                 "latitude"=>$order['restaurant']->latitude,
                 "address"=>$order['restaurant']->address,
