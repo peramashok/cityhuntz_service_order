@@ -667,11 +667,7 @@ class OrdersController extends Controller
         $order->otp = rand(1000, 9999);
         $order->zone_id = $restaurant->zone_id;
         $dm_tips_manage_status = BusinessSetting::where('key', 'dm_tips_status')->first()->value;
-        if ($dm_tips_manage_status == 1) {
-            $order->dm_tips = $request->dm_tips ?? 0;
-        } else {
-            $order->dm_tips = 0;
-        }
+        $order->dm_tips = $request->dm_tips ?? 0;
         $order->vehicle_id = $vehicle_id;
         $order->pending = now();
 
