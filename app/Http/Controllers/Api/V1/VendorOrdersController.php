@@ -402,23 +402,23 @@ class VendorOrdersController extends Controller
                     $unpaid_pay_method = $unpaid_payment;
                 }
 
-                if($order->payment_method == 'cash_on_delivery'|| $unpaid_pay_method == 'cash_on_delivery')
-                {
-                    $ol = OrderLogic::create_transaction( order:$order, received_by:'restaurant', status: null);
-                }
-                else
-                {
-                    $ol = OrderLogic::create_transaction( order:$order, received_by:'admin', status: null);
-                }
+                // if($order->payment_method == 'cash_on_delivery'|| $unpaid_pay_method == 'cash_on_delivery')
+                // {
+                //     $ol = OrderLogic::create_transaction( order:$order, received_by:'restaurant', status: null);
+                // }
+                // else
+                // {
+                //     $ol = OrderLogic::create_transaction( order:$order, received_by:'admin', status: null);
+                // }
 
-                if(!$ol){
-                    return response()->json([
-                        'status'=>'failed',
-                        'errors' => [
-                            ['code' => 'error', 'message' => translate('messages.faield_to_create_order_transaction')]
-                        ]
-                    ], 406);
-                }
+                // if(!$ol){
+                //     return response()->json([
+                //         'status'=>'failed',
+                //         'errors' => [
+                //             ['code' => 'error', 'message' => translate('messages.faield_to_create_order_transaction')]
+                //         ]
+                //     ], 406);
+                // }
 
                 $order->payment_status = 'paid';
                 OrderLogic::update_unpaid_order_payment(order_id:$order->id, payment_method:$order->payment_method);
