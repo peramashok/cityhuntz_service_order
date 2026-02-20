@@ -9,11 +9,12 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Vendor extends Authenticatable
 {
     use Notifiable;
-    use HasFactory;
+    use HasFactory, SoftDeletes;
     protected $table="users";
 
     protected $fillable = ['remember_token'];
