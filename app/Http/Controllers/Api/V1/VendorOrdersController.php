@@ -355,7 +355,7 @@ class VendorOrdersController extends Controller
                 ], 403);
             }
 
-            if($request['status']=='delivered' && in_array($order['order_type'],['dine_in','take_away']) && !$data)
+            if($request['status']=='delivered' && !in_array($order['order_type'],['dine_in','take_away']))
             {
                 return response()->json([
                     'status'=>'failed',
