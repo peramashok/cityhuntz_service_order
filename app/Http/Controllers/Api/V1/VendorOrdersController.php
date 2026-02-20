@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Http;
 use App\Models\WalletTransaction;
 use App\Models\WithdrawalMethod;
 use App\Models\OrderPayment;
-
+use Illuminate\Support\Facades\DB;
 class VendorOrdersController extends Controller
 {
     /**
@@ -365,7 +365,7 @@ class VendorOrdersController extends Controller
                 ], 403);
             }
 
-            if( $request['status']=='handover' && $order->otp != $request['otp'])
+            if( $request['status']=='handover' && $order->order_type == 'delivery' && $order->otp != $request['otp'])
             {
                 return response()->json([
                     'status'=>'failed',
@@ -793,4 +793,79 @@ class VendorOrdersController extends Controller
              ], 500);
         }
     }
+
+
+    //  public function send_order_otp(Request $request)
+    // {
+    //     $validator = Validator::make($request->all(), [
+    //         'order_id' => 'required'
+    //     ]);
+    //     if ($validator->fails()) {
+    //         return response()->json(['errors' => Helpers::error_processor($validator)], 403);
+    //     }
+    //     $vendor = $request['vendor'];
+    //     $restaurant=  $vendor->restaurants[0];
+
+    //     $order = Order::where('id',$request->order_id)->whereHas('restaurant.vendor', function($query) use($vendor){
+    //         $query->where('id', $vendor->id);
+    //     })
+    //     ->with('customer')
+
+    //     ->where(function($query)use($restaurant){
+    //         if(config('order_confirmation_model') == 'restaurant' ||   (($restaurant?->restaurant_model == 'subscription' && $restaurant?->restaurant_sub?->self_delivery == 1) || ($restaurant?->restaurant_model == 'commission' &&  $restaurant?->self_delivery_system == 1) ) )
+    //         {
+    //             $query->whereIn('order_status', ['accepted','pending','confirmed', 'processing', 'handover','picked_up']);
+    //         }
+    //         else
+    //         {
+    //             $query->whereIn('order_status', ['confirmed', 'processing', 'handover','picked_up'])
+    //             ->orWhere(function($query){
+    //                 $query->where('payment_status','paid')->where('order_status', 'accepted');
+    //             })
+    //             ->orWhere(function($query){
+    //                 $query->where('order_status','pending')->where('order_type', 'take_away');
+    //             });
+    //         }
+    //     })
+    //     ->Notpos()
+    //     ->NotDigitalOrder()
+    //     ->first();
+    //     if(!$order)
+    //     {
+    //         return response()->json([
+    //             'errors' => [
+    //                 ['code' => 'order', 'message' => translate('messages.not_found')]
+    //             ]
+    //         ], 404);
+    //     }
+    //     $value = translate('your_order_is_ready_to_be_delivered,_plesae_share_your_otp_with_delivery_man.').' '.translate('otp:').$order->otp.', '.translate('order_id:').$order->id;
+
+    //     try {
+    //         $customer_push_notification_status=Helpers::getNotificationStatusData('customer','customer_delivery_verification');
+
+    //         $fcm_token= ($order->is_guest == 0 ? $order?->customer?->cm_firebase_token : $order?->guest?->fcm_token) ?? null ;
+    //         if ($customer_push_notification_status?->push_notification_status  == 'active' && $value && $fcm_token) {
+    //             $data = [
+    //                 'title' => translate('messages.order_ready_to_be_delivered'),
+    //                 'description' => $value,
+    //                 'order_id' => $order->id,
+    //                 'image' => '',
+    //                 'type' => 'order_status',
+    //                 'order_status' => $order->order_status,
+    //             ];
+    //             Helpers::send_push_notif_to_device($fcm_token, $data);
+    //             DB::table('user_notifications')->insert([
+    //                 'data' => json_encode($data),
+    //                 'user_id' => $order->user_id,
+    //                 'created_at' => now(),
+    //                 'updated_at' => now()
+    //             ]);
+    //         }
+    //     } catch (\Exception $e) {
+    //         info($e->getMessage());
+    //         return response()->json(['message' => translate('messages.push_notification_faild')], 403);
+    //     }
+    //     return response()->json([], 200);
+    // }
+
 }
