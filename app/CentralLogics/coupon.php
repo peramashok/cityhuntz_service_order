@@ -5,7 +5,7 @@ namespace App\CentralLogics;
 use App\Models\Order;
 use App\Models\Restaurant;
 use Carbon\Carbon;
-use Api\Models\UserScratchCard;
+use App\Models\UserScratchCard;
 class CouponLogic
 {
     public static function get_discount($coupon, $order_amount)
