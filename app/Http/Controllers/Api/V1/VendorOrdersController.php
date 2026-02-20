@@ -355,15 +355,15 @@ class VendorOrdersController extends Controller
                 ], 403);
             }
 
-            if($request['status']=='delivered' && !in_array($order['order_type'],['dine_in','take_away']))
-            {
-                return response()->json([
-                    'status'=>'failed',
-                    'errors' => [
-                        ['code' => 'status', 'message' => translate('messages.you_can_not_delivered_delivery_order')]
-                    ]
-                ], 403);
-            }
+            // if($request['status']=='delivered' && !in_array($order['order_type'],['dine_in','take_away']))
+            // {
+            //     return response()->json([
+            //         'status'=>'failed',
+            //         'errors' => [
+            //             ['code' => 'status', 'message' => translate('messages.you_can_not_delivered_delivery_order')]
+            //         ]
+            //     ], 403);
+            // }
 
             if( $request['status']=='handover' && $order->order_type == 'delivery' && $order->otp != $request['otp'])
             {
