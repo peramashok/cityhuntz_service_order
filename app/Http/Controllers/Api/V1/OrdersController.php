@@ -843,10 +843,10 @@ class OrdersController extends Controller
 
         $tax_a=0;//$order->tax_status =='included'?0:$total_tax_amount;
 
-        if($restaurant->minimum_order > $product_price + $total_addon_price )
-        {
-            return  ['status'=>'failed', 'code' => 'order_amount', 'message' => translate('messages.you_need_to_order_at_least').' '. $restaurant->minimum_order.' '.Helpers::currency_code()];
-        }
+        // if($restaurant->minimum_order > $product_price + $total_addon_price )
+        // {
+        //     return  ['status'=>'failed', 'code' => 'order_amount', 'message' => translate('messages.you_need_to_order_at_least').' '. $restaurant->minimum_order.' '.Helpers::currency_code()];
+        // }
 
         $free_delivery_over = BusinessSetting::where('key', 'free_delivery_over')->first()->value;
         if(isset($free_delivery_over))
