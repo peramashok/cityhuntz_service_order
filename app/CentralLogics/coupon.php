@@ -81,7 +81,7 @@ class CouponLogic
             if ($total===0) {
                 $scrtchCard=UserScratchCard::where(['user_id' => $user_id, 'code' => $coupon['code']])->first();
                 if(is_null($scrtchCard)){
-                    return 406;//Limite orer
+                    return 404;//Limite orer
                 }
                 if($scrtchCard->status>0){
                    return 406;//Limite orer 
