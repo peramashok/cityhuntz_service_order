@@ -822,7 +822,18 @@ class Helpers
         }
         $data['category_ids'] = $categories;
 
-        $add_ons = gettype($data['add_ons']) == 'array' ? $data['add_ons'] : json_decode($data['add_ons'],true);
+        // $add_ons = gettype($data['add_ons']) == 'array' ? $data['add_ons'] : json_decode($data['add_ons'],true);
+
+
+        $add_ons = [];
+
+        if (!empty($data['add_ons'])) {
+            $add_ons = is_array($data['add_ons'])
+                ? $data['add_ons']
+                : json_decode($data['add_ons'], true) ?? [];
+        }
+
+
         $data_addons = self::addon_data_formatting(AddOn::whereIn('id', $add_ons)->active()->get(), true, $trans, $local);
 
          // FIX: ensure both variables are arrays
