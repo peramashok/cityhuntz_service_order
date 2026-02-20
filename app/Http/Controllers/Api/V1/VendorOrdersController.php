@@ -257,9 +257,9 @@ class VendorOrdersController extends Controller
                 'order_proof' =>'nullable|array|max:5',
             ]);
              
-            $validator->sometimes('otp', 'required', function ($request) {
-                return ($request['status']=='handover');
-            });
+            // $validator->sometimes('otp', 'required', function ($request) {
+            //     return ($request['status']=='delivered');
+            // });
 
             if ($validator->fails()) {
                 return response()->json(['errors' => Helpers::error_processor($validator)], 403);
@@ -341,15 +341,15 @@ class VendorOrdersController extends Controller
                 ], 403);
             }
 
-            if( $request['status']=='handover' && $order->otp != $request['otp'])
-            {
-                return response()->json([
-                    'status'=>'failed',
-                    'errors' => [
-                        ['code' => 'otp', 'message' => 'Not matched']
-                    ]
-                ], 403);
-            }
+            // if( $request['status']=='handover' && $order->otp != $request['otp'])
+            // {
+            //     return response()->json([
+            //         'status'=>'failed',
+            //         'errors' => [
+            //             ['code' => 'otp', 'message' => 'Not matched']
+            //         ]
+            //     ], 403);
+            // }
 
             // if(Config::get('order_delivery_verification')==1 && $request['status']=='delivered' && $order->otp != $request['otp'])
             // {
