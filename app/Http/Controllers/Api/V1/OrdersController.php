@@ -446,10 +446,7 @@ class OrdersController extends Controller
         $increased=$dataArray['increased'];
         $distance_data=$dataArray['distance_data'];
         $distance=0;
-       
-        // $restaurant = Restaurant::with(['discount', 'restaurant_sub'])->selectRaw('*, IF(((select count(*) from `restaurant_schedule` where `restaurants`.`id` = `restaurant_schedule`.`restaurant_id` and `restaurant_schedule`.`day` = '.$schedule_at->format('w').' and `restaurant_schedule`.`opening_time` < "'.$schedule_at->format('H:i:s').'" and `restaurant_schedule`.`closing_time` >"'.$schedule_at->format('H:i:s').'") > 0), true, false) as open')->where('id', $restaurantId)->first();
-
-
+      
         $restaurant = Restaurant::with(['discount', 'restaurant_sub'])
             ->selectRaw("
                 restaurants.*,
@@ -730,20 +727,39 @@ class OrdersController extends Controller
 
 
                 
-                 $selectedAddons=$c->add_on_ids ?? [];
+                 // $selectedAddons=$c->add_on_ids ?? [];
 
-                 $selected_addons=array();
-                 $selected_addon_quantity=array();
+                 // $selected_addons=array();
+                 // $selected_addon_quantity=array();
+
+
+                 $selectedAddons = $c->add_on_ids ?? [];
+
+                // If stored as JSON in DB, decode it
+                if (is_string($selectedAddons)) {
+                    $selectedAddons = json_decode($selectedAddons, true);
+                }
+
+                $selected_addons = [];
+                $selected_addon_quantity = [];
+
                  foreach($selectedAddons as $addon){
                     $selected_addons[]=$addon['add_on_id'];
                     $selected_addon_quantity[]=$addon['add_on_qty'];  
                  }
+
 
                 $addon_data = Helpers::calculate_addon_price(addons: \App\Models\AddOn::whereIn('id',$selected_addons)->get(), add_on_qtys: $selected_addon_quantity);
 
 
                 $variation_options=array();
                 $selectedVariations=$c->variations ?? [];
+
+                // If stored as JSON in DB
+                if (is_string($selectedVariations)) {
+                    $selectedVariations = json_decode($selectedVariations, true);
+                }
+
                 foreach($selectedVariations as $variationOption){
                     $variation_options[]=$variationOption['variation_option_id'];
 
