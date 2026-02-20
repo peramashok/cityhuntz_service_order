@@ -753,6 +753,7 @@ class OrdersController extends Controller
 
 
                 $variation_options=array();
+                $variation_options_qty=array();
                 $selectedVariations=$c->variations ?? [];
 
                 // If stored as JSON in DB
