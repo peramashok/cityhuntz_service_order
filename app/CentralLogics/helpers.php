@@ -37,6 +37,7 @@ use App\Models\CashBack;
 use App\Models\NotificationMessage;
 use App\Models\WalletTransaction;
 use App\Models\ReservedTable;
+use App\Models\User;
 
 class Helpers
 { 
