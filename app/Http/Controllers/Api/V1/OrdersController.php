@@ -775,10 +775,14 @@ class OrdersController extends Controller
                     }
                 }
 
-                $product_variations = json_decode($product->variations, true);
+               // $product_variations = json_decode($product->variations, true);
 
- 
-                    
+                $product_variations = [];
+
+                if (!empty($product->variations)) {
+                    $product_variations = json_decode($product->variations, true) ?? [];
+                }
+    
                 $variations=[];
                
                 if (count($product_variations)) {
