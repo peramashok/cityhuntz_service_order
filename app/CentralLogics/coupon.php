@@ -79,7 +79,7 @@ class CouponLogic
              $total = Order::where(['user_id' => $user_id, 'coupon_code' => $coupon['code']])->count();
 
             if ($total===0) {
-                $scrtchCard=UserScratchCard::where(['user_id1' => $user_id, 'code' => $coupon['code']])->first();
+                $scrtchCard=UserScratchCard::where(['user_id' => $user_id, 'code' => $coupon['code']])->first();
                 if(is_null($scrtchCard)){
                     return 406;//Limite orer
                 }
