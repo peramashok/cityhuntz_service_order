@@ -463,7 +463,7 @@ class VendorOrdersController extends Controller
                 WalletTransaction::create($tranArray);
                 
                 //Referrral bonus adding
-                $customerData=User::where('is', $order->user_id)->first();
+                $customerData=User::where('id', $order->user_id)->first();
                 Helpers::firstOrderReferralBonus($customerData);
 
                 // Send notification for adding money to vendor wallet
