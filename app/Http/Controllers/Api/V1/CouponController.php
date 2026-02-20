@@ -108,14 +108,14 @@ class CouponController extends Controller
             case 200:
                 return response()->json($coupon, 200);
             case 406:
-                return response()->json(['status'=>'failed','code' => 'coupon', 'message' => translate('messages.coupon_usage_limit_over')], 406);
+                return response()->json(['status'=>'failed','code' => 'coupon', 'message' => "Coupon usage limit over"], 406);
             case 407:
-                return response()->json(['status'=>'failed','code' => 'coupon', 'message' => translate('messages.coupon_expire')], 407);
+                return response()->json(['status'=>'failed','code' => 'coupon', 'message' => "Coupon Expire"], 407);
             case 408:
                 return response()->json([  
                     'status'=>'failed',
                     'code' => 'coupon',
-                    'message' => translate('messages.You_are_not_eligible_for_this_coupon')
+                    'message' => "You are not eligible for this coupon"
                 ], 403);
             default:
                 return response()->json([
