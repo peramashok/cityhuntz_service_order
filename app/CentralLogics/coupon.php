@@ -83,9 +83,6 @@ class CouponLogic
                 if(is_null($scrtchCard)){
                     return 404;//Limite orer
                 }
-                if($scrtchCard->status>0){
-                   return 406;//Limite orer 
-                }
                 return 200;
             }else{
                 return 406;//Limite orer
