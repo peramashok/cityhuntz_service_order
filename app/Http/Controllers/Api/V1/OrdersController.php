@@ -1097,6 +1097,16 @@ class OrdersController extends Controller
                    'message' => translate('messages.Order_not_found')
                 ], 404);
             }
+
+            $user=User::where('id', $order->user_id)->first();
+             
+            if($user->otp==''){
+                 $otp = rand(1000, 9999);
+                 $user->otp=$otp;
+                 $user->save();
+            }
+            
+            $customerOtp=$user->otp;
             
             $restaurantArray=array(
                 "id"=>$order['restaurant']->id,
@@ -1118,6 +1128,8 @@ class OrdersController extends Controller
             $order['offline_payment'] =  isset($order->offline_payments) ? Helpers::offline_payment_formater($order->offline_payments) : null;
             $order['is_reviewed'] =   $order->details_count >  Review::whereOrderId($request->order_id)->count() ? False :True ;
             $order['is_dm_reviewed'] =  $order?->delivery_man ? DMReview::whereOrderId($order->id)->exists()  : True ;
+
+            $order['customer_otp']=$customerOtp;
 
             if($order->subscription){
                 $order->subscription['delivered_count']= (int) $order->subscription->logs()->whereOrderStatus('delivered')->count();
@@ -1235,7 +1247,19 @@ class OrdersController extends Controller
                 $query->where('is_guest' , 0);
             })
             ->where('id',$request->order_id)->first();
+
+            // OTP
+
             
+            $user=User::where('id', $order->user_id)->first();
+             
+            if($user->otp==''){
+                 $otp = rand(1000, 9999);
+                 $user->otp=$otp;
+                 $user->save();
+            }
+            
+            $order->customer_otp=$user->otp;
             $details = $order?->details;
 
             if ($details != null && $details->count() > 0) {
