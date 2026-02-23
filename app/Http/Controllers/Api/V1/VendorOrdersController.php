@@ -375,7 +375,14 @@ class VendorOrdersController extends Controller
                 ], 403);
             }
 
-            $user=User::where('id', $order->user_id)->first();
+            $user = User::find($order->user_id);
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'failed',
+                    'message' => 'User not found'
+                ], 404);
+            }
             if( $request['status']=='delivered' && $order->order_type == 'delivery' && $user->otp != $request['otp'])
             {
                 return response()->json([
