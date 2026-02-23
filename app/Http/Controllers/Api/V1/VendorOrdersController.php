@@ -383,7 +383,7 @@ class VendorOrdersController extends Controller
                     'message' => 'User not found'
                 ], 404);
             }
-            if( $request['status']=='delivered' && $order->order_type == 'delivery' && $user->otp != $request['otp'])
+            if( $request['status']=='delivered' && $order->order_type == 'delivery' && $user->otp !== $request->otp)
             {
                 return response()->json([
                     'status'=>'failed',
