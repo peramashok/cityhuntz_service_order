@@ -130,7 +130,6 @@ class ReportsController extends Controller
 
             $data=[
                 'orders'                  => $ordersList,
-               
                 'zone'                    => $zone,
                 'restaurant'              => $restaurant,
                 'from'                    => $from,
