@@ -269,13 +269,13 @@ class VendorOrdersController extends Controller
                 ], 403);
             }
 
-            // $validator->sometimes('otp', 'required', function ($input) use ($order) {
-            //     return (
-            //         $input->status == 'delivered' &&
-            //         $order &&
-            //         $order->order_type == 'delivery'
-            //     );
-            // });
+            $validator->sometimes('otp', 'required', function ($input) use ($order) {
+                return (
+                    $input->status == 'delivered' &&
+                    $order &&
+                    $order->order_type == 'delivery'
+                );
+            });
 
              $validator->sometimes('otp', 'required', function ($input) use ($order) {
                 return (
@@ -370,10 +370,30 @@ class VendorOrdersController extends Controller
                 return response()->json([
                     'status'=>'failed',
                     'errors' => [
-                        ['code' => 'otp', 'message' => 'Not matched']
+                        ['code' => 'otp', 'message' => 'Otp does not matched']
                     ]
                 ], 403);
             }
+
+            $user = User::find($order->user_id);
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'failed',
+                    'message' => 'User not found'
+                ], 404);
+            }
+            if( $request['status']=='delivered' && $order->order_type == 'delivery' && $user->otp !== $request->otp)
+            {
+                return response()->json([
+                    'status'=>'failed',
+                    'errors' => [
+                        ['code' => 'otp', 'message' => 'Otp does not matched']
+                    ]
+                ], 403);
+            }
+
+
 
             // if(Config::get('order_delivery_verification')==1 && $request['status']=='handover' && $order->otp != $request['otp'])
             // {
