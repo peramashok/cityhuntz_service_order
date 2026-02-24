@@ -357,8 +357,32 @@ class Order extends Model
         ->when($filter == 'previous_year', function ($query) {
             return $query->whereYear('schedule_at', date('Y') - 1);
         })
+        // ->when($filter == 'this_week', function ($query) {
+        //     return $query->whereBetween('schedule_at', [now()->startOfWeek()->format('Y-m-d H:i:s'), now()->endOfWeek()->format('Y-m-d H:i:s')]);
+        // })
+        ->when($filter == 'today', function ($query) {
+            return $query->whereDate('schedule_at', now()->toDateString());
+        })
+
+        ->when($filter == 'yesterday', function ($query) {
+            return $query->whereDate('schedule_at', now()->subDay()->toDateString());
+        })
+
         ->when($filter == 'this_week', function ($query) {
-            return $query->whereBetween('schedule_at', [now()->startOfWeek()->format('Y-m-d H:i:s'), now()->endOfWeek()->format('Y-m-d H:i:s')]);
+            return $query->whereBetween('schedule_at', [
+                now()->startOfWeek(),
+                now()->endOfWeek()
+            ]);
+        })
+        ->when($filter == 'last_week', function ($query) {
+            return $query->whereBetween('schedule_at', [
+                now()->subWeek()->startOfWeek(),
+                now()->subWeek()->endOfWeek()
+            ]);
+        })
+        ->when($filter == 'last_month', function ($query) {
+            return $query->whereMonth('schedule_at', now()->subMonth()->month)
+                         ->whereYear('schedule_at', now()->subMonth()->year);
         });
         return $query;
     }
