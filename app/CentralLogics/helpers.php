@@ -38,7 +38,7 @@ use App\Models\NotificationMessage;
 use App\Models\WalletTransaction;
 use App\Models\ReservedTable;
 use App\Models\User;
-
+use App\Models\Restaurant;
 class Helpers
 { 
     public static function error_processor($validator)
@@ -1871,4 +1871,25 @@ class Helpers
         
         return 'success';
     }
+
+
+    public static function get_restaurant_id()
+    {
+        if (auth()->check()) {
+            return auth()->user()->restaurant->id;
+        }
+        return auth()->user()->restaurants[0]->id;
+    }
+
+
+    public static function get_restaurant_name($restaurant){
+        if(is_array($restaurant)){
+            $data = Restaurant::whereIn('id',$restaurant)->pluck('name')->toArray();
+        }else{
+            $data = Restaurant::where('id',$restaurant)->pluck('name')->toArray();
+        }
+        $data = implode(', ', $data);
+        return $data;
+    }
+
 }
