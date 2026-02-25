@@ -608,7 +608,9 @@ class VendorOrdersController extends Controller
                 $response = Http::post(
                     env('NOTIFICATION_URL') . 'notifications/update_status',
                     [
-                        'order_id' => $order->id 
+                        'order_id' => $order->id,
+                        'status'=>$request['status'],
+                        'user_id'=>auth()->user()->id                    
                     ]
                 );
             }catch(\Exception $ex){
