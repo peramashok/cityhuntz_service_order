@@ -629,6 +629,10 @@ class BookATableController extends Controller
                 ], 403);
             }
 
+            if($order->order_status=='cancelled'){
+                 return response()->json(['status'=>'failed', 'code' => 'order', 'message' => "Already this booking was canceled"], 400);
+            }
+
              $restaurant=Restaurant::where('id', $request->restaurant_id)->first();
 
             if($restaurant->vendor_id!=$vendor->id){
@@ -765,7 +769,12 @@ class BookATableController extends Controller
         if(!$order){
                 return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.not_found')], 400);
         }
-        else if ($order->order_status != 'closed') {
+
+          if($order->order_status=='cancelled'){
+                 return response()->json(['status'=>'failed', 'code' => 'order', 'message' => "Already this booking was canceled"], 400);
+            }
+            
+        if ($order->order_status != 'closed') {
             $order->order_status = 'cancelled';
             $order->cancelled = now();
             $order->cancelled_reason = $request->reason;
