@@ -241,10 +241,10 @@ class OrdersController extends Controller
                 $order->canceled = now();
                 $order->cancellation_reason = $request->reason;
                 $order->canceled_by = 'customer';
-                $order->save();
+               // $order->save();
 
-                Helpers::decreaseSellCount(order_details:$order->details);
-                Helpers::increment_order_count($order->restaurant); //for subscription package order increase
+                // Helpers::decreaseSellCount(order_details:$order->details);
+                // Helpers::increment_order_count($order->restaurant); //for subscription package order increase
 
                 //Refund amount
                 try {
@@ -266,6 +266,8 @@ class OrdersController extends Controller
                                 'reason'   => $request->reason ?? 'Order cancelled',
                             ]);
 
+                        dd($response);
+
                         if ($response->failed()) {
                             \Log::error('Refund failed', [
                                 'status' => $response->status(),
@@ -275,7 +277,7 @@ class OrdersController extends Controller
 
                     }
 
-                    //dd($response);
+                    
                 } catch (\Exception $th) {
                     Log::error($th->getMessage());
                 }
