@@ -266,7 +266,7 @@ class OrdersController extends Controller
                                 'reason'   => $request->reason ?? 'Order cancelled',
                             ]);
 
-                       
+                       print_r($response);
 
                         if ($response->failed()) {
                             \Log::error('Refund failed', [
@@ -291,7 +291,7 @@ class OrdersController extends Controller
                             'status'=>'canceled'
                         ]
                     );
-                     dd($response1);
+               print_r($response1);
                 }catch(\Exception $ex){
                     \Log::error('Notification API failed', [
                         'message' => $ex->getMessage(),
