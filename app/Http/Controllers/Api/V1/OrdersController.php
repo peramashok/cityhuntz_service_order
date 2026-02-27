@@ -233,18 +233,23 @@ class OrdersController extends Controller
             })
             ->with('details')
             ->Notpos()->first();
-            if(!$order){
-                    return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.not_found')], 400);
+            if(is_null($order)){
+                 return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.not_found')], 400);
             }
-            else if ($order->order_status == 'pending' || $order->order_status == 'failed' || $order->order_status == 'canceled'  ) {
+           
+            if($order->order_status=='canceled'){
+                 return response()->json(['status'=>'failed', 'code' => 'order', 'message' => "Already this order was canceled"], 400);
+            }
+
+            if ($order->order_status == 'pending' || $order->order_status == 'failed' || $order->order_status == 'canceled'  ) {
                 $order->order_status = 'canceled';
                 $order->canceled = now();
                 $order->cancellation_reason = $request->reason;
                 $order->canceled_by = 'customer';
                 $order->save();
 
-                Helpers::decreaseSellCount(order_details:$order->details);
-                Helpers::increment_order_count($order->restaurant); //for subscription package order increase
+                // Helpers::decreaseSellCount(order_details:$order->details);
+                // Helpers::increment_order_count($order->restaurant); //for subscription package order increase
 
                 //Refund amount
                 try {
@@ -259,12 +264,10 @@ class OrdersController extends Controller
                             ->post($url, [
                                 // ⚠️ Use gateway order ID if available
                                 'order_id' => (string) $order->id,
-
-                                // ⚠️ Convert to smallest currency unit if required
-                                'amount'   => round((float) $order->total_amount, 2),
-
                                 'reason'   => $request->reason ?? 'Order cancelled',
                             ]);
+
+                      
 
                         if ($response->failed()) {
                             \Log::error('Refund failed', [
@@ -275,7 +278,7 @@ class OrdersController extends Controller
 
                     }
 
-                    //dd($response);
+                    
                 } catch (\Exception $th) {
                     Log::error($th->getMessage());
                 }
@@ -285,10 +288,11 @@ class OrdersController extends Controller
                         env('NOTIFICATION_URL') . 'notifications/update_status',
                         [
                             'order_id' => $order->id,
-                            'user_type'=>'customer',
-                            'status'=>'canceled'
+                            'status'=>'canceled',
+                            'user_id'=>auth()->user()->id                    
                         ]
                     );
+               
                 }catch(\Exception $ex){
                     \Log::error('Notification API failed', [
                         'message' => $ex->getMessage(),
