@@ -689,8 +689,7 @@ class BookATableController extends Controller
                                     'timeout' => 30,
                                 ])
                             ->post($url, [
-                                'booking_id' => (string) $order->id,
-                                'amount' => round((float) $order->total_amount, 2),
+                                'booking_id' => (string) $order->id 
                             ]);
 
                         if ($response->failed()) {
@@ -784,8 +783,7 @@ class BookATableController extends Controller
                                 'timeout' => 30,
                             ])
                         ->post($url, [
-                            'booking_id' => (string) $order->id,
-                            'amount' => round((float) $order->total_amount, 2),
+                            'booking_id' => (string) $order->id
                         ]);
 
                     if ($response->failed()) {

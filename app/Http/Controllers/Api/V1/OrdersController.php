@@ -241,7 +241,7 @@ class OrdersController extends Controller
                 $order->canceled = now();
                 $order->cancellation_reason = $request->reason;
                 $order->canceled_by = 'customer';
-               $order->save();
+                $order->save();
 
                 // Helpers::decreaseSellCount(order_details:$order->details);
                 // Helpers::increment_order_count($order->restaurant); //for subscription package order increase
