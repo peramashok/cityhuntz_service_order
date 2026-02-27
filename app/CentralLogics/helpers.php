@@ -1856,15 +1856,16 @@ class Helpers
         $userType='User';
     
         
-        if($referralAmount>0){
-            $tranArray=array(
-                "user_id"=>$userData->ref_by,
-                "transaction_id"=>"R".uniqid('', true),
-                "credit"=>$referralAmount,
-                "transaction_type"=>'Referral User',
-                'transaction_desc' => $userData->f_name . ' joined using your referral code as user. Referral bonus has been added.'
-                "reference"=>$referreUserData->phone,
-                "created_at"=>now()
+       if ($referralAmount > 0) {
+
+            $tranArray = array(
+                "user_id" => $userData->ref_by,
+                "transaction_id" => "R" . uniqid('', true),
+                "credit" => $referralAmount,
+                "transaction_type" => 'Referral User',
+                "transaction_desc" => $userData->f_name . ' joined using your referral code as user. Referral bonus has been added.',
+                "reference" => $referreUserData->phone,
+                "created_at" => now()
             );
 
             WalletTransaction::insert($tranArray);
