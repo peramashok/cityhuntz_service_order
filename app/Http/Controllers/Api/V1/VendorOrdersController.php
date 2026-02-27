@@ -571,10 +571,8 @@ class VendorOrdersController extends Controller
                             ->post($url, [
                                 // ⚠️ Use gateway order ID if available
                                 'order_id' => (string) $order->id,
-
                                 // ⚠️ Convert to smallest currency unit if required
-                                'amount'   => round((float) $order->total_amount, 2),
-
+                               // 'amount'   => round((float) $order->total_amount, 2),
                                 'reason'   => $request->reason ?? 'Order cancelled',
                             ]);
 
