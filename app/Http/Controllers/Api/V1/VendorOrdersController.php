@@ -307,6 +307,10 @@ class VendorOrdersController extends Controller
                 ], 403);
             }
 
+            if($order->order_status=='canceled'){
+                 return response()->json(['status'=>'failed', 'code' => 'order', 'message' => "Already this order was canceled"], 400);
+            }
+
             if($request['order_status']=='canceled')
             {
                 if(!config('canceled_by_restaurant'))

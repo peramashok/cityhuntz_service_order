@@ -233,10 +233,15 @@ class OrdersController extends Controller
             })
             ->with('details')
             ->Notpos()->first();
-            if(!$order){
-                    return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.not_found')], 400);
+            if(is_null($order)){
+                 return response()->json(['status'=>'failed', 'code' => 'order', 'message' => translate('messages.not_found')], 400);
             }
-            else if ($order->order_status == 'pending' || $order->order_status == 'failed' || $order->order_status == 'canceled'  ) {
+           
+            if($order->order_status=='canceled'){
+                 return response()->json(['status'=>'failed', 'code' => 'order', 'message' => "Already this order was canceled"], 400);
+            }
+
+            if ($order->order_status == 'pending' || $order->order_status == 'failed' || $order->order_status == 'canceled'  ) {
                 $order->order_status = 'canceled';
                 $order->canceled = now();
                 $order->cancellation_reason = $request->reason;
