@@ -113,11 +113,12 @@ class ReportsController extends Controller
             |--------------------------------------------------------------------------
             */
 
-            $baseOrders =   (clone $baseOrders)
-                ->when(isset($key), function($query) use($key){
+            $baseOrders = (clone $baseOrders)
+                ->when(!empty($key), function ($query) use ($key) {
                     $query->where(function ($q) use ($key) {
                         foreach ($key as $value) {
-                            $q->orWhere('id', 'like', "%{$value}%");
+                            $q->orWhere('id', 'like', "%{$value}%")
+                              ->orWhere('order_no', 'like', "%{$value}%");
                         }
                     });
                 });
