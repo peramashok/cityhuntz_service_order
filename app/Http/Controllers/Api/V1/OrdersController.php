@@ -381,22 +381,22 @@ class OrdersController extends Controller
             $dataArray['increased']=$increased;
             $dataArray['distance_data'] =$distance_data;
 
-            $home_delivery = BusinessSetting::where('key', 'home_delivery')->first()?->value ?? null;
-            if ($home_delivery == null && $request->order_type == 'delivery') {
-                return response()->json(['status'=>'failed','code' => 'order_type', 'message' => translate('messages.Home_delivery_is_disabled')], 403);
-            }
+            // $home_delivery = BusinessSetting::where('key', 'home_delivery')->first()?->value ?? null;
+            // if ($home_delivery == null && $request->order_type == 'delivery') {
+            //     return response()->json(['status'=>'failed','code' => 'order_type', 'message' => translate('messages.Home_delivery_is_disabled')], 403);
+            // }
 
-            $take_away = BusinessSetting::where('key', 'take_away')->first()?->value ?? null;
-            if ($take_away == null && $request->order_type == 'take_away') {
-                return response()->json(['status'=>'failed', 'code' => 'order_type', 'message' => translate('messages.Take_away_is_disabled')], 403);
-            }
+            // $take_away = BusinessSetting::where('key', 'take_away')->first()?->value ?? null;
+            // if ($take_away == null && $request->order_type == 'take_away') {
+            //     return response()->json(['status'=>'failed', 'code' => 'order_type', 'message' => translate('messages.Take_away_is_disabled')], 403);
+            // }
 
-            $settings =  BusinessSetting::where('key', 'cash_on_delivery')->first();
-            $cod = json_decode($settings?->value, true);
-            if(isset($cod['status']) &&  $cod['status'] != 1 && $request->payment_method == 'cash_on_delivery'){
-                return response()->json(['status'=>'failed','code' => 'order_time', 'message' => translate('messages.Cash_on_delivery_is_not_active')], 403);
+            // $settings =  BusinessSetting::where('key', 'cash_on_delivery')->first();
+            // $cod = json_decode($settings?->value, true);
+            // if(isset($cod['status']) &&  $cod['status'] != 1 && $request->payment_method == 'cash_on_delivery'){
+            //     return response()->json(['status'=>'failed','code' => 'order_time', 'message' => translate('messages.Cash_on_delivery_is_not_active')], 403);
 
-            }
+            // }
 
             if($request->schedule_at && $schedule_at < now())
             {
@@ -1241,7 +1241,7 @@ class OrdersController extends Controller
                 return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
             }
             $user_id = $request->user ? $request->user->id : $request['guest_id'];
-            $order = Order::with('restaurant', 'delivery_man', 'details','offline_payments','subscription.schedules')->where('user_id', $user_id)
+            $order = Order::with('restaurant', 'delivery_man', 'details','offline_payments','subscription.schedules', 'guest', 'customer')->where('user_id', $user_id)
 
             ->when(!isset($request->user) , function($query){
                 $query->where('is_guest' , 1);
@@ -1266,7 +1266,7 @@ class OrdersController extends Controller
             $order->customer_otp=$user->otp;
             $details = $order?->details;
 
-            if ($details != null && $details->count() > 0) {
+            //if ($details != null && $details->count() > 0) {
                 $storage = [];
                 foreach ($details as $item) {
                     $item['add_ons'] = json_decode($item['add_ons']);
@@ -1281,11 +1281,11 @@ class OrdersController extends Controller
 
                 return response()->json(['status'=>'success', 'data'=>['order'=>$order, 'subscription_schedules'=> $subscription_schedules, 'offline_payment' => $offline_payment]
                 ], 200);
-            }
-            else {
-                return response()->json(['status'=>'failed','code' => 'order', 'message' => translate('messages.not_found')
-                ], 200);
-            }
+            // }
+            // else {
+            //     return response()->json(['status'=>'failed','code' => 'order', 'message' => translate('messages.not_found')
+            //     ], 200);
+            // }
         } catch(\Exception $e){
               return response()->json([
                'status' => 'failed',
