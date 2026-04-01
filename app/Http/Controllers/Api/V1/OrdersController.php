@@ -1241,7 +1241,7 @@ class OrdersController extends Controller
                 return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
             }
             $user_id = $request->user ? $request->user->id : $request['guest_id'];
-            $order = Order::with('restaurant', 'delivery_man', 'details','offline_payments','subscription.schedules', 'guest', 'customer')->where('user_id', $user_id)
+            $order = Order::with('restaurant', 'delivery_man', 'details','offline_payments','subscription.schedules', 'customer')->where('user_id', $user_id)
 
             ->when(!isset($request->user) , function($query){
                 $query->where('is_guest' , 1);

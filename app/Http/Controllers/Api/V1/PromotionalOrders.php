@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Restaurant;
 use App\Models\WalletTransaction;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class PromotionalOrders extends Controller
 {
@@ -92,6 +94,21 @@ class PromotionalOrders extends Controller
                 ], 400);
             }
 
+
+            $address = [
+            'contact_person_name' => $user->f_name . ' ' . $user->l_name,
+            'contact_person_number' =>$user->phone,
+            'contact_person_email' => $user->email,
+            'address_type' =>'',
+            'address' => '',
+            'floor' => '',
+            'road' => "",
+            'house' =>  "",
+            'longitude' => "",
+            'latitude' =>  "",
+        ];
+
+
             $order=new Order();
             $orderId = time();
             $order->order_no = $orderId;
@@ -103,6 +120,7 @@ class PromotionalOrders extends Controller
             $order->order_amount =$request->order_amount;
             $order->payment_status='paid';
             $order->order_status='delivered';
+            $order->delivery_address = json_encode($address);
             $order->payment_method='wallet';
             $order->save();
 
@@ -138,6 +156,28 @@ class PromotionalOrders extends Controller
 
                 
                 WalletTransaction::create($tranArray);
+
+
+                 try{
+                    $url = rtrim(env('NOTIFICATION_URL'), '/') . '/notifications/send_paid_at_restaurant';
+
+                    $response = Http::asJson()
+                        ->acceptJson()
+                        ->withOptions([
+                            'timeout' => 30,
+                        ])
+                        ->post($url, [
+                            'order_id' => (string) $order->id,
+                        ]);
+                    if ($response->failed()) {
+                        \Log::error('Approve or reject failed', [
+                            'status' => $response->status(),
+                            'body'   => $response->body(),
+                        ]);
+                    }
+                }catch(\Exception $ex){
+                     Log::error($ex->getMessage());
+                }
 
             
                 return response()->json(['status'=>'success','message' =>"You have successfully paid amount", 'order_id'=>$order->id], 200);
