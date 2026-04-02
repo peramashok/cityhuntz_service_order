@@ -39,6 +39,8 @@ use App\Models\WalletTransaction;
 use App\Models\ReservedTable;
 use App\Models\User;
 use App\Models\Restaurant;
+use App\Models\WithdrawRequest;
+
 class Helpers
 { 
     public static function error_processor($validator)
@@ -1892,6 +1894,99 @@ class Helpers
         }
         $data = implode(', ', $data);
         return $data;
+    }
+
+    public static function getWalletAmount($userId)
+    {
+         try {
+
+            $paymentArray = [];
+
+            /*
+            |--------------------------------------------------------------------------
+            | TOTAL EARNINGS & DEBITS
+            |--------------------------------------------------------------------------
+            */
+            $totalEarnings = WalletTransaction::where('user_id', $userId)
+                ->sum('credit');
+
+            $totalDebits = WalletTransaction::where('user_id', $userId)
+                ->sum('debit');
+
+            $paymentArray['total_earnings'] = (float) $totalEarnings;
+            $paymentArray['total_debits']   = (float) $totalDebits;
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | TOTAL WITHDRAW (Pending + Approved)
+            |--------------------------------------------------------------------------
+            */
+            $totalWithdraw = WithdrawRequest::where('user_id', $userId)
+                ->where('approved', '!=', 2) // exclude rejected
+                ->sum('amount');
+
+            $paymentArray['withdraw_amount'] = (float) $totalWithdraw;
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | CURRENT WALLET BALANCE
+            |--------------------------------------------------------------------------
+            | Since withdraw is NOT saved as debit,
+            | subtract it manually
+            |--------------------------------------------------------------------------
+            */
+            $currentBalance = $totalEarnings - $totalDebits - $totalWithdraw;
+
+            $paymentArray['total_available_amount'] =
+                max(0, (float) $currentBalance);
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | CREDIT HOLD PERIOD (2 DAYS)
+            |--------------------------------------------------------------------------
+            */
+            $creditHoldDate = Carbon::now()->subDays(2);
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | ELIGIBLE BALANCE (Transactions upto 2 days back)
+            |--------------------------------------------------------------------------
+            */
+            $eligibleBalance = WalletTransaction::where('user_id', $userId)
+                ->where('created_at', '<=', $creditHoldDate)
+                ->selectRaw('COALESCE(SUM(credit - debit), 0) as balance')
+                ->value('balance');
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | AVAILABLE AMOUNT TO WITHDRAW
+            |--------------------------------------------------------------------------
+            | Subtract withdraw manually here also
+            |--------------------------------------------------------------------------
+            */
+            $availableToWithdraw = $eligibleBalance - $totalWithdraw;
+
+            $paymentArray['available_amount_to_withdraw'] =
+                max(0, (float) $availableToWithdraw);
+
+
+            return [
+                'status' => 'success',
+                'available_amount' => $paymentArray
+            ];
+
+        } catch (\Exception $e) {
+
+            return [
+                'status'  => 'failed',
+                'message' => $e->getMessage()
+            ];
+        }
     }
 
 }

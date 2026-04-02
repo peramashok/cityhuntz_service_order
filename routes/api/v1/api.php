@@ -134,6 +134,10 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
             // Route::put('offline-payment-update', 'OrderController@update_offline_payment_info');
         });
 
+        Route::prefix('order')->controller(PromotionalOrders::class)->group(function () {
+            Route::post('pay_now', 'createRestaurantNewOrder')->middleware('auth:api');
+        });
+
          Route::prefix('book_a_table')->controller(BookATableController::class)->group(function () {
              Route::get('book_now', 'book_now');
              Route::get('get_booked_details/{id}', 'getBookedTableDetails');
