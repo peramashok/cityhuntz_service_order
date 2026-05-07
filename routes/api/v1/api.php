@@ -75,6 +75,16 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
              Route::post('update_status', 'updateBookingStatus');
         });
 
+
+
+         Route::prefix('pub_book_a_table')->controller(PubBookATableController::class)->group(function () {
+             Route::get('current_bookings', 'getAllVendorCurrrentBookings');
+             Route::post('closed_bookings', 'getAllVendorClosedBookings');
+             Route::post('all_bookings', 'getAllVendorBookings');
+             Route::get('get_booked_details/{id}', 'getVendorBookedTableDetails');
+             Route::post('update_status', 'updateBookingStatus');
+        });
+
         Route::group(['prefix' => 'delivery-man'], function () {
             Route::controller(DeliverymanController::class)->group(function () {
                 Route::get('get-delivery-man-list', 'get_delivery_man_list');

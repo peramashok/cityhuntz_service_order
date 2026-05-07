@@ -26,6 +26,7 @@ use App\Models\ReservedTableDetail;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Models\WalletTransaction;
 
 class BookATableController extends Controller
 {
@@ -678,11 +679,9 @@ class BookATableController extends Controller
                 );
 
                 WalletTransaction::create($tranArray);
-
-
                 
                 //Referrral bonus adding
-                $customerData=User::where('is', $order->user_id)->first();
+                $customerData=User::where('id', $order->user_id)->first();
                 Helpers::firstOrderReferralBonus($customerData);
 
             }

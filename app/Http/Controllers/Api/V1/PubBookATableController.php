@@ -26,6 +26,7 @@ use App\Models\PubReservedTableDetail;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Models\WalletTransaction;
 
 class PubBookATableController extends Controller
 {
@@ -574,22 +575,19 @@ class PubBookATableController extends Controller
                     'required',
                     Rule::exists('pubs', 'id')->whereNull('deleted_at')
                 ],
-                'booking_id' => 'required|exists:reserved_tables,id',
+                'booking_id' => 'required|exists:pub_reserved_tables,id',
                 'reason' =>'required_if:status,cancelled',
                 'status' => 'required|in:confirmed,cancelled,closed,dine_in',
                 //'order_proof' =>'nullable|array|max:5',
             ]);
             $request->otp="123456";
-            // $validator->sometimes('otp', 'required', function ($request) {
-            //     return (Config::get('order_delivery_verification')==1 && $request['status']=='delivered');
-            // });
 
             if ($validator->fails()) {
                 return response()->json(['errors' => Helpers::error_processor($validator)], 403);
             }
 
             $vendor = auth()->user();
-            $order = PubReservedTable::with('restaurant')->where('id', $request->booking_id)->where('pub_id', $request->pub_id)->first();
+            $order = PubReservedTable::with('pub')->where('id', $request->booking_id)->where('pub_id', $request->pub_id)->first();
             if(!$order)
             {
                 return response()->json([
@@ -603,7 +601,7 @@ class PubBookATableController extends Controller
                  return response()->json(['status'=>'failed', 'code' => 'order', 'message' => "Already this booking was canceled"], 400);
             }
 
-             $restaurant=Restaurant::where('id', $request->pub_id)->first();
+             $restaurant=Pub::where('id', $request->pub_id)->first();
 
             if($restaurant->vendor_id!=$vendor->id){
                 return response()->json([
@@ -614,13 +612,7 @@ class PubBookATableController extends Controller
             }
 
             $restaurant=$order->restaurant;
-            // $data =0;
-            // if ($restaurant?->restaurant_model == 'subscription'){
-            //   $data =1;
-            // }
- 
             
-
             $order->order_status = $request['status'];
             if($request->status=='cancelled'){
                 $order->cancelled_reason = $request['reason'];
@@ -637,25 +629,23 @@ class PubBookATableController extends Controller
                     "transaction_type"=>'booking',
                     "reference"=>$vendor->phone,
                     "order_id"=>$order->id,
-                    "restaturant_id"=>$order->pub_id,
+                    "pub_id"=>$order->pub_id,
                     "created_at"=>now()
                 );
 
                 WalletTransaction::create($tranArray);
 
 
-                
                 //Referrral bonus adding
-                $customerData=User::where('is', $order->user_id)->first();
+                $customerData=User::where('id', $order->user_id)->first();
                 Helpers::firstOrderReferralBonus($customerData);
-
             }
 
             if($request->status=='cancelled'){
                   try {
                     if($order->payment_status=='Paid'){
                         
-                        $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/booking_refund';
+                        $url = rtrim(env('PAYMENT_URL'), '/') . '/refunds/pub_booking_refund';
      
                         $response = Http::asJson()
                             ->acceptJson()
@@ -680,7 +670,7 @@ class PubBookATableController extends Controller
             }
             try{
                 $response = Http::post(
-                    env('NOTIFICATION_URL') . 'notifications/update_booking_status',
+                    env('NOTIFICATION_URL') . 'notifications/update_pub_booking_status',
                     [
                         'booking_id' => $order->id,
                         'status'=>$request['status']
