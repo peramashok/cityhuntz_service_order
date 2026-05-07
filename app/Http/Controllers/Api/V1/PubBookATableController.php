@@ -12,22 +12,22 @@ use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Facades\Route;
 use App\CentralLogics\Helpers;
 use App\Models\BusinessSetting;
-use App\Models\Restaurant;
+use App\Models\Pub;
 use App\Models\Vendor;
-use App\Models\ReservedTable;
+use App\Models\PubReservedTable;
 use App\Models\SubscriptionTransaction;
 use Illuminate\Support\Facades\DB;
 use MatanYadaev\EloquentSpatial\Objects\Point;
 use Carbon\Carbon;
 use Illuminate\Validation\Rule;
-use App\Models\RestaurantTable;
+use App\Models\PubTable;
 use App\Models\PaymentSetting;
-use App\Models\ReservedTableDetail;
+use App\Models\PubReservedTableDetail;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class BookATableController extends Controller
+class PubBookATableController extends Controller
 {
     public function book_now(Request $request)
     {
@@ -47,7 +47,7 @@ class BookATableController extends Controller
                         $ids = explode(',', $value);
 
                         if (
-                            DB::table('restaurant_tables')
+                            DB::table('pub_tables')
                                 ->whereIn('id', $ids)
                                 ->count() !== count($ids)
                         ) {
@@ -65,14 +65,12 @@ class BookATableController extends Controller
 
                 'no_of_persons' => 'required|integer|min:1',
 
-                'restaurant_id' => [
+                'pub_id' => [
                     'required',
-                    Rule::exists('restaurants', 'id')->whereNull('deleted_at')
+                    Rule::exists('pubs', 'id')->whereNull('deleted_at')
                 ],
             ]);
 
-
-            
             if ($validator->fails()) {
                 return response()->json([
                     'status' => 'failed',
@@ -99,18 +97,17 @@ class BookATableController extends Controller
             /* =======================
              * RESTAURANT OPEN CHECK
              * ======================= */
-            $restaurant = Restaurant::with(['discount', 'restaurant_sub'])
-                ->selectRaw(
+            $restaurant = Pub::selectRaw(
                     '
-                    restaurants.*,
+                    pubs.*,
                     IF(
                         (
                             SELECT COUNT(*) 
-                            FROM restaurant_schedule 
-                            WHERE restaurants.id = restaurant_schedule.restaurant_id
-                            AND restaurant_schedule.day = ?
-                            AND restaurant_schedule.opening_time <= ?
-                            AND restaurant_schedule.closing_time >= ?
+                            FROM pubs_schedules 
+                            WHERE pubs.id = pubs_schedules.pub_id
+                            AND pubs_schedules.day = ?
+                            AND pubs_schedules.opening_time <= ?
+                            AND pubs_schedules.closing_time >= ?
                         ) > 0,
                         true,
                         false
@@ -122,72 +119,39 @@ class BookATableController extends Controller
                         $schedule_at->format('H:i:s'),
                     ]
                 )
-                ->where('id', $request->restaurant_id)
+                ->where('id', $request->pub_id)
                 ->first();
 
             if (!$restaurant) {
                 return response()->json([
                     'status'  => 'failed',
-                    'message' => translate('messages.restaurant_not_found')
+                    'message' => 'Pub details not found'
                 ], 404);
             }
 
-            if (
-                ($restaurant->restaurant_model === 'subscription' && isset($rest_sub)) ||
-                ($restaurant->restaurant_model === 'unsubscribed')
-            ) {
-                return response()->json([
-                    'status'  => 'failed',
-                    'message' => translate('messages.Sorry_the_restaurant_is_unable_to_take_any_order_!')
-                ], 403);
-            }
-
+           
             if (!$restaurant->active) {
                 return response()->json([
                     'status'  => 'failed',
-                    'message' => 'Restaurant is temporarily closed'
+                    'message' => 'Pub is temporarily closed'
                 ], 403);
             }
 
             if (!$restaurant->open) {
                 return response()->json([
                     'status'  => 'failed',
-                    'message' => translate('messages.restaurant_is_closed_at_order_time')
+                    'message' => 'Pub is closed at booking time'
                 ], 403);
             }
 
-           
-             
             $fromTime = $request->from_time;
             $toTime   = $request->to_time;
             $scheduledDate = Carbon::parse($request->schedule_at)->toDateString();
 
             $selectedTableNos = explode(',', $request->table_nos); // "6,7" → [6,7]
 
-            // $tableslist = RestaurantTable::whereIn('restaurant_tables.id', $selectedTableNos)
-            //     ->leftJoin('reserved_tables', function ($join) use ($fromTime, $toTime, $scheduledDate) {
-            //         $join->on(DB::raw('FIND_IN_SET(restaurant_tables.id, reserved_tables.table_nos)'), '>', DB::raw('0'))
-            //             ->whereDate('reserved_tables.scheduled_at', $scheduledDate)
-            //             ->where(function ($q) use ($fromTime, $toTime) {
-            //                 $q->where('reserved_tables.from_time', '<', $toTime)
-            //                   ->where('reserved_tables.to_time', '>', $fromTime);
-            //             });
-            //     })
-            //     ->select(
-            //         'restaurant_tables.id',
-            //         'restaurant_tables.table_name',
-            //         'restaurant_tables.capacity',
-            //         DB::raw('IF(COUNT(reserved_tables.id) > 0, 1, 0) as is_booked')
-            //     )
-            //     ->groupBy(
-            //         'restaurant_tables.id',
-            //         'restaurant_tables.table_name',
-            //         'restaurant_tables.capacity'
-            //     )
-            //     ->get();
-
-    
-            $tableCounts=RestaurantTable::whereIn('restaurant_tables.id', $selectedTableNos)->where('restaurant_id', $request->restaurant_id)->count();
+             
+            $tableCounts=PubTable::whereIn('pub_tables.id', $selectedTableNos)->where('pub_id', $request->pub_id)->count();
 
             if($tableCounts<count($selectedTableNos)){
                  return response()->json([
@@ -196,10 +160,10 @@ class BookATableController extends Controller
                 ], 400);
             }
 
-             $tableslist = RestaurantTable::whereIn('restaurant_tables.id', $selectedTableNos)
+             $tableslist = PubTable::whereIn('pub_tables.id', $selectedTableNos)
                 ->leftJoin('reserved_tables', function ($join) use ($fromTime, $toTime, $scheduledDate) {
 
-                    $join->on(DB::raw('FIND_IN_SET(restaurant_tables.id, reserved_tables.table_nos)'), '>', DB::raw('0'))
+                    $join->on(DB::raw('FIND_IN_SET(pub_tables.id, reserved_tables.table_nos)'), '>', DB::raw('0'))
 
                         // ✅ active reservations only
                         ->whereNotIn('reserved_tables.order_status', ['cancelled', 'closed'])
@@ -214,17 +178,17 @@ class BookATableController extends Controller
                         });
                 })
                 ->select(
-                    'restaurant_tables.id',
-                    'restaurant_tables.table_name',
-                    'restaurant_tables.capacity',
+                    'pub_tables.id',
+                    'pub_tables.table_name',
+                    'pub_tables.capacity',
 
                     // ✅ if NO active overlapping reservation → 0
                     DB::raw('IF(COUNT(reserved_tables.id) > 0, 1, 0) AS is_booked')
                 )
                 ->groupBy(
-                    'restaurant_tables.id',
-                    'restaurant_tables.table_name',
-                    'restaurant_tables.capacity'
+                    'pub_tables.id',
+                    'pub_tables.table_name',
+                    'pub_tables.capacity'
                 )
                 ->get();
      
@@ -247,7 +211,7 @@ class BookATableController extends Controller
              * ======================= */
             $bookingCode = time();
 
-            $bookATable = new ReservedTable();
+            $bookATable = new PubReservedTable();
             $bookATable->booking_code  = $bookingCode;
             $bookATable->user_id       = $request->user ? $request->user->id : $request->guest_id;
             $bookATable->is_guest      = $request->user ? 0 : 1;
@@ -256,7 +220,7 @@ class BookATableController extends Controller
             $bookATable->to_time       = $request->to_time;
             $bookATable->table_nos     = $request->table_nos;
             $bookATable->no_of_persons = $request->no_of_persons;
-            $bookATable->restaurant_id = $request->restaurant_id;
+            $bookATable->pub_id = $request->pub_id;
             $bookATable->order_status = 'pending';
             $bookATable->pending      = now();
             $bookATable->created_at   = now();
@@ -267,16 +231,16 @@ class BookATableController extends Controller
             $bookATable->save();
 
 
-            $tablesList=RestaurantTable::whereIn('restaurant_tables.id', $selectedTableNos)->where('restaurant_id', $request->restaurant_id)->get();
+            $tablesList=PubTable::whereIn('pub_tables.id', $selectedTableNos)->where('pub_id', $request->pub_id)->get();
             $total=0;
             foreach($tablesList as $single){
-                $ReservedTableData = new ReservedTableDetail();
-                $ReservedTableData->order_id=$bookATable->id;
-                $ReservedTableData->table_id=$single->id;
-                $ReservedTableData->table_name=$single->table_name;
-                $ReservedTableData->amount=$single->price;
-                $ReservedTableData->status='Booked';
-                $ReservedTableData->save();
+                $PubReservedTableData = new PubReservedTableDetail();
+                $PubReservedTableData->order_id=$bookATable->id;
+                $PubReservedTableData->table_id=$single->id;
+                $PubReservedTableData->table_name=$single->table_name;
+                $PubReservedTableData->amount=$single->price;
+                $PubReservedTableData->status='Booked';
+                $PubReservedTableData->save();
                 $total=$total+$single->price;
             }
 
@@ -287,13 +251,11 @@ class BookATableController extends Controller
 
             $total_amount=$total+$platformAmount;
 
-            $bookATableUpdate =ReservedTable::findOrFail($bookATable->id);
+            $bookATableUpdate =PubReservedTable::findOrFail($bookATable->id);
             $bookATable->order_amount     = $total;
             $bookATable->processing_charges = $platformAmount;
             $bookATable->total_amount = $total_amount;
             $bookATable->save();
-
-
 
             return response()->json([
                 'status'       => 'success',
@@ -326,10 +288,10 @@ class BookATableController extends Controller
             $guest_id=$request->user ? $request->user->id : $request->guest_id;
             $is_guest=$request->user ? 0 : 1;
 
-            $reservation = ReservedTable::with('table_details', 'table_details.restaurantTables')->where('id', $id)->where('user_id', $guest_id)->where('is_guest', $is_guest)->first();
+            $reservation = PubReservedTable::with('table_details', 'table_details.pubTables')->where('id', $id)->where('user_id', $guest_id)->where('is_guest', $is_guest)->first();
             $tableIds = explode(',', $reservation->table_nos);
 
-            $tables = RestaurantTable::whereIn('id', $tableIds)->get();
+            $tables = PubTable::whereIn('id', $tableIds)->get();
 
              return response()->json([
                'status' => 'success',
@@ -356,26 +318,28 @@ class BookATableController extends Controller
             if ($validator->fails()) {
                 return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
             }
+            $guest_id=$request->user ? $request->user->id : $request->guest_id;
+            $is_guest=$request->user ? 0 : 1;
 
+           
             $pagelength = $request->pagelength ?? 10;
             $pageno     = $request->pageno ?? 1;
 
-            $guest_id=$request->user ? $request->user->id : $request->guest_id;
-            $is_guest=$request->user ? 0 : 1;
-                $reservations = ReservedTable::with('restaurant:id,name,logo')
+            $reservations = PubReservedTable::with('pub:id,name,logo')
                 ->where('user_id', $guest_id)
                 ->where('is_guest', $is_guest)
                 ->skip(($pageno - 1) * $pagelength)
-                ->take($pagelength)                
+                ->take($pagelength)
                 ->get()
                 ->map(function ($item) {
+
                     // Convert CSV table_nos to array
                     $tableIds = explode(',', $item->table_nos);
 
                     // Fetch all tables for this reservation
-                    $item->tables = RestaurantTable::whereIn('id', $tableIds)->get();
+                    $item->tables = PubTable::whereIn('id', $tableIds)->get();
 
-                    return $item; // make sure to return the modified item
+                    return $item;
                 });
              return response()->json([
                'status' => 'success',
@@ -401,9 +365,9 @@ class BookATableController extends Controller
     {
          try{
             $validator = Validator::make($request->all(), [
-               'restaurant_id' => [
+               'pub_id' => [
                     'required',
-                    Rule::exists('restaurants', 'id')->whereNull('deleted_at')
+                    Rule::exists('pubs', 'id')->whereNull('deleted_at')
                 ]
             ]);
 
@@ -411,8 +375,8 @@ class BookATableController extends Controller
                 return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
             }
            
-            $reservations = ReservedTable::with('customer:id,f_name,l_name,email,phone')
-                ->where('restaurant_id', $request->restaurant_id)
+            $reservations = PubReservedTable::with('customer:id,f_name,l_name,email,phone')
+                ->where('pub_id', $request->pub_id)
                 ->whereIn('order_status', ['pending','confirmed','dine_in','cancelled'])
                 ->orderBy('from_time', 'DESC')
                 ->get()
@@ -421,7 +385,7 @@ class BookATableController extends Controller
                     $tableIds = explode(',', $item->table_nos);
 
                     // Fetch all tables for this reservation
-                    $item->tables = RestaurantTable::whereIn('id', $tableIds)->get();
+                    $item->tables = PubTable::whereIn('id', $tableIds)->get();
 
                     return $item; // make sure to return the modified item
                 });
@@ -449,9 +413,9 @@ class BookATableController extends Controller
     {
          try{
             $validator = Validator::make($request->all(), [
-               'restaurant_id' => [
+               'pub_id' => [
                     'required',
-                    Rule::exists('restaurants', 'id')->whereNull('deleted_at')
+                    Rule::exists('pubs', 'id')->whereNull('deleted_at')
                 ],
                 'limit'=>'required|integer',
                 'offset'=>'required|integer'
@@ -461,14 +425,14 @@ class BookATableController extends Controller
                 return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
             }
            
-           $reservations = ReservedTable::with('customer:id,f_name,l_name,email,phone,image')
-                ->where('restaurant_id', $request->restaurant_id)
+           $reservations = PubReservedTable::with('customer:id,f_name,l_name,email,phone,image')
+                ->where('pub_id', $request->pub_id)
                 ->orderBy('id', 'desc')
                 ->paginate($request['limit'], ['*'], 'page', $request['offset']);
 
            $reservationsItems = collect($reservations->items())->map(function ($item) {
                 $tableIds = array_filter(explode(',', $item->table_nos));
-                $item->tables = RestaurantTable::whereIn('id', $tableIds)->get();
+                $item->tables = PubTable::whereIn('id', $tableIds)->get();
                 return $item;
             });
 
@@ -502,9 +466,9 @@ class BookATableController extends Controller
     {
          try{
             $validator = Validator::make($request->all(), [
-               'restaurant_id' => [
+               'pub_id' => [
                     'required',
-                    Rule::exists('restaurants', 'id')->whereNull('deleted_at')
+                    Rule::exists('pubs', 'id')->whereNull('deleted_at')
                 ]
             ]);
 
@@ -512,15 +476,15 @@ class BookATableController extends Controller
                 return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
             }
            
-           $reservations = ReservedTable::with('customer:id,f_name,l_name,email,phone,image')
-                ->where('restaurant_id', $request->restaurant_id)
+           $reservations = PubReservedTable::with('customer:id,f_name,l_name,email,phone,image')
+                ->where('pub_id', $request->pub_id)
                 ->where('order_status', 'closed')
                 ->orderBy('id', 'desc')
                 ->paginate($request['limit'], ['*'], 'page', $request['offset']);
 
            $reservationsItems = collect($reservations->items())->map(function ($item) {
                 $tableIds = array_filter(explode(',', $item->table_nos));
-                $item->tables = RestaurantTable::whereIn('id', $tableIds)->get();
+                $item->tables = PubTable::whereIn('id', $tableIds)->get();
                 return $item;
             });
 
@@ -554,9 +518,9 @@ class BookATableController extends Controller
     {
          try{
             $validator = Validator::make($request->all(), [
-               'restaurant_id' => [
+               'pub_id' => [
                     'required',
-                    Rule::exists('restaurants', 'id')->whereNull('deleted_at')
+                    Rule::exists('pubs', 'id')->whereNull('deleted_at')
                 ]
             ]);
 
@@ -564,7 +528,7 @@ class BookATableController extends Controller
                 return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
             }
 
-            $reservation = ReservedTable::with('customer:id,f_name,l_name,email,phone,image', 'table_details')->where('id', $id)->first();
+            $reservation = PubReservedTable::with('customer:id,f_name,l_name,email,phone,image', 'table_details')->where('id', $id)->first();
 
             if(is_null($reservation)){
                  return response()->json([
@@ -572,7 +536,7 @@ class BookATableController extends Controller
                    'message'=>'Booking details not found'
                  ], 400);
             }
-            if($reservation->restaurant_id!=$request->restaurant_id){
+            if($reservation->pub_id!=$request->pub_id){
                  return response()->json([
                    'status' => 'failed',
                    'message'=>"You can’t view other restaurant's booking details"
@@ -580,7 +544,7 @@ class BookATableController extends Controller
             }
 
             $tableIds = explode(',', $reservation->table_nos);
-            $tables = RestaurantTable::whereIn('id', $tableIds)->get();
+            $tables = PubTable::whereIn('id', $tableIds)->get();
 
              return response()->json([
                'status' => 'success',
@@ -606,9 +570,9 @@ class BookATableController extends Controller
     {
         try{
             $validator = Validator::make($request->all(), [
-                'restaurant_id' => [
+                'pub_id' => [
                     'required',
-                    Rule::exists('restaurants', 'id')->whereNull('deleted_at')
+                    Rule::exists('pubs', 'id')->whereNull('deleted_at')
                 ],
                 'booking_id' => 'required|exists:reserved_tables,id',
                 'reason' =>'required_if:status,cancelled',
@@ -625,7 +589,7 @@ class BookATableController extends Controller
             }
 
             $vendor = auth()->user();
-            $order = ReservedTable::with('restaurant')->where('id', $request->booking_id)->where('restaurant_id', $request->restaurant_id)->first();
+            $order = PubReservedTable::with('restaurant')->where('id', $request->booking_id)->where('pub_id', $request->pub_id)->first();
             if(!$order)
             {
                 return response()->json([
@@ -639,7 +603,7 @@ class BookATableController extends Controller
                  return response()->json(['status'=>'failed', 'code' => 'order', 'message' => "Already this booking was canceled"], 400);
             }
 
-             $restaurant=Restaurant::where('id', $request->restaurant_id)->first();
+             $restaurant=Restaurant::where('id', $request->pub_id)->first();
 
             if($restaurant->vendor_id!=$vendor->id){
                 return response()->json([
@@ -673,7 +637,7 @@ class BookATableController extends Controller
                     "transaction_type"=>'booking',
                     "reference"=>$vendor->phone,
                     "order_id"=>$order->id,
-                    "restaturant_id"=>$order->restaurant_id,
+                    "restaturant_id"=>$order->pub_id,
                     "created_at"=>now()
                 );
 
@@ -755,14 +719,14 @@ class BookATableController extends Controller
         $validator = Validator::make($request->all(), [
             'reason' => 'required|max:255',
             'guest_id' => $request->user ? 'nullable' : 'required',
-            'booking_id'=>'required|exists:reserved_tables,id'
+            'booking_id'=>'required|exists:pub_reserved_tables,id'
         ]);
 
         if ($validator->fails()) {
             return response()->json(['status'=>'failed', 'errors' => Helpers::error_processor($validator)], 403);
         }
         $user_id = $request->user ? $request->user->id : $request['guest_id'];
-        $order = ReservedTable::where(['user_id' => $user_id, 'id' => $request['booking_id']])
+        $order = PubReservedTable::where(['user_id' => $user_id, 'id' => $request['booking_id']])
 
         ->when(!isset($request->user) , function($query){
             $query->where('is_guest' , 1);
