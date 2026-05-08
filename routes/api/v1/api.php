@@ -52,7 +52,7 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
          });
     });
 
-   Route::group(['prefix' => 'vendor', 'middleware' => ['auth:api']], function () {
+   Route::group(['prefix' =>'vendor', 'middleware'=> ['auth:api']], function () {
          Route::controller(VendorOrdersController::class)->group(function () {
             Route::get('order-details', 'get_order_details');
             Route::get('order', 'get_order');
@@ -76,7 +76,16 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
         });
 
 
-         Route::group(['prefix' => 'delivery-man'], function () {
+
+         Route::prefix('pub_book_a_table')->controller(PubBookATableController::class)->group(function () {
+             Route::get('current_bookings', 'getAllVendorCurrrentBookings');
+             Route::post('closed_bookings', 'getAllVendorClosedBookings');
+             Route::post('all_bookings', 'getAllVendorBookings');
+             Route::get('get_booked_details/{id}', 'getVendorBookedTableDetails');
+             Route::post('update_status', 'updateBookingStatus');
+        });
+
+        Route::group(['prefix' => 'delivery-man'], function () {
             Route::controller(DeliverymanController::class)->group(function () {
                 Route::get('get-delivery-man-list', 'get_delivery_man_list');
                 Route::get('assign-deliveryman', 'assign_deliveryman');
@@ -91,14 +100,13 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
                 Route::post('send', 'messages_store');
             });
         });
-
     });
 
     Route::group(['prefix' => 'delivery-man', 'middleware' => ['auth:api']], function () {
         Route::get('current-orders', 'OrdersController@get_current_orders');
     });
 
-    Route::group(['prefix' => 'coupon', 'middleware' => 'auth:api'], function () {
+    Route::group(['prefix' => 'coupon', 'middleware' =>'auth:api'], function () {
         Route::get('list', 'CouponController@list');
         Route::get('apply', 'CouponController@apply');
     });
@@ -114,36 +122,37 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
     });
 
     // Customer app
-    // Route::group(['prefix' => 'customer'], function () {
+    
 
      Route::group(['prefix' => 'customer', 'middleware' => 'apiGuestCheck'], function () {
 
         Route::prefix('order')->controller(OrdersController::class)->group(function () {
-             Route::get('list', 'get_customer_order_list');
-            // Route::get('order-subscription-list', 'OrderController@get_order_subscription_list');
-            // Route::get('running-orders', 'OrderController@get_running_orders');
+            Route::get('list', 'get_customer_order_list');
             Route::get('details', 'get_order_details');
             Route::post('place', 'place_order');  // visitor logs
             Route::post('cancel', 'cancel_order');
-            // Route::post('refund-request', 'OrderController@refund_request');
-            // Route::get('refund-reasons', 'OrderController@refund_reasons');
             Route::get('track', 'track_order');
-           
-            // Route::put('payment-method', 'OrderController@update_payment_method');
-            // Route::put('offline-payment', 'OrderController@offline_payment');
-            // Route::put('offline-payment-update', 'OrderController@update_offline_payment_info');
         });
 
         Route::prefix('order')->controller(PromotionalOrders::class)->group(function () {
             Route::post('pay_now', 'createRestaurantNewOrder')->middleware('auth:api');
         });
 
-         Route::prefix('book_a_table')->controller(BookATableController::class)->group(function () {
+        Route::prefix('book_a_table')->controller(BookATableController::class)->group(function () {
              Route::get('book_now', 'book_now');
              Route::get('get_booked_details/{id}', 'getBookedTableDetails');
              Route::get('my_bookings', 'getAllCustomerBookings');
              Route::post('cancel_booking', 'cancel_booking');
         });
+
+         Route::prefix('pubs')->group(function () {
+            Route::prefix('book_a_table')->controller(PubBookATableController::class)->group(function () {
+                 Route::get('book_now', 'book_now');
+                 Route::get('get_booked_details/{id}', 'getBookedTableDetails');
+                 Route::get('my_bookings', 'getAllCustomerBookings');
+                 Route::post('cancel_booking', 'cancel_booking');
+            });
+         });
 
         Route::prefix('cart')->controller(CartController::class)->group(function () {
             Route::get('list', 'get_carts');

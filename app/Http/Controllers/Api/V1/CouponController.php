@@ -10,7 +10,6 @@ use App\CentralLogics\CouponLogic;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
-
 class CouponController extends Controller
 {
     public function list(Request $request)
