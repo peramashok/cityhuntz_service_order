@@ -145,7 +145,15 @@ Route::group(['namespace' => 'Api\V1', 'middleware'=>['localization','react']], 
              Route::post('cancel_booking', 'cancel_booking');
         });
 
-         Route::prefix('pubs')->group(function () {
+        Route::prefix('events')->group(function () {
+            Route::prefix('tickets')->controller(EventsPurchaseController::class)->group(function () {
+                 Route::get('book_now', 'book_now');
+                 Route::get('get_booked_details/{id}', 'getBookedTableDetails');
+                 Route::get('my_bookings', 'getAllCustomerBookings');
+            });
+        });
+
+        Route::prefix('pubs')->group(function () {
             Route::prefix('book_a_table')->controller(PubBookATableController::class)->group(function () {
                  Route::get('book_now', 'book_now');
                  Route::get('get_booked_details/{id}', 'getBookedTableDetails');
