@@ -262,10 +262,6 @@ class BookATableController extends Controller
             $bookATable->pending      = now();
             $bookATable->created_at   = now();
             $bookATable->save();
-            $bookATable->order_status = 'pending';
-            $bookATable->pending      = now();
-            $bookATable->created_at   = now();
-            $bookATable->save();
 
 
             $tablesList=RestaurantTable::whereIn('restaurant_tables.id', $selectedTableNos)->where('restaurant_id', $request->restaurant_id)->get();
