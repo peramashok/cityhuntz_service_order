@@ -43,7 +43,22 @@ class CartController extends Controller
 
             $orderType='';
             $restaurantIds=array();
-            $carts = Cart::where('user_id', $user_id)->where('is_guest',$is_guest)->get()
+            // $carts = Cart::with(['item', 'restaurant'])->where('user_id', $user_id)->where('is_guest',$is_guest)->get()
+
+
+
+            $carts = Cart::with(['item', 'restaurant'])
+            ->where('user_id', $user_id)
+            ->where('is_guest', $is_guest)
+
+            ->whereHasMorph(
+                'item',
+                ['App\Models\Food'],
+                function ($query) {
+                    $query->where('status', 1);
+                }
+            )
+            ->get()
             ->map(function ($data) use (&$restaurantIds) {
 
                 if (!in_array($data->restaurant_id, $restaurantIds)) {
