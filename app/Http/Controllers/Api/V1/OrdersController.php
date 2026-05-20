@@ -703,126 +703,382 @@ class OrdersController extends Controller
             $carts = $request['cart'];
         }
 
-        foreach ($carts as $c) {
+        // foreach ($carts as $c) {
 
-            if ($c['item_type'] === 'App\Models\ItemCampaign' || $c['item_type'] === 'AppModelsItemCampaign')  {
-                $product = ItemCampaign::active()->find($c['item_id']);
-                $campaign_id = $c['item_id'];
-                $code = 'campaign';
-            } else{
-                $product = Food::active()->find($c['item_id']);
-                $food_id = $c['item_id'];
-                $code = 'food';
-            }
+        //     if ($c['item_type'] === 'App\Models\ItemCampaign' || $c['item_type'] === 'AppModelsItemCampaign')  {
+        //         $product = ItemCampaign::active()->find($c['item_id']);
+        //         $campaign_id = $c['item_id'];
+        //         $code = 'campaign';
+        //     } else{
+        //         $product = Food::active()->find($c['item_id']);
+        //         $food_id = $c['item_id'];
+        //         $code = 'food';
+        //     }
  
 
-            if($product->restaurant_id != $restaurantId){
-                return  ['status'=>'failed', 'code' => 'restaurant', 'message' => translate('messages.you_need_to_order_food_from_single_restaurant')];
-            }
+           
 
-            if ($product) {
-                if($product->maximum_cart_quantity && ($c['quantity'] > $product->maximum_cart_quantity)){
-                     return  ['status'=>'failed', 'code' => 'quantity', 'message' =>$product?->name ?? $product?->title ?? $code.' '.translate('messages.has_reached_the_maximum_cart_quantity_limit')];
+        //     if ($product) {
+        //         if($product->maximum_cart_quantity && ($c['quantity'] > $product->maximum_cart_quantity)){
+        //              return  ['status'=>'failed', 'code' => 'quantity', 'message' =>$product?->name ?? $product?->title ?? $code.' '.translate('messages.has_reached_the_maximum_cart_quantity_limit')];
+        //         }
+
+        //         if($product->restaurant_id != $restaurantId){
+        //             return  ['status'=>'failed', 'code' => 'restaurant', 'message' => translate('messages.you_need_to_order_food_from_single_restaurant')];
+        //         }
+                    
+        //          // $selectedAddons=$c->add_on_ids ?? [];
+
+        //          // $selected_addons=array();
+        //          // $selected_addon_quantity=array();
+
+
+        //          $selectedAddons = $c->add_on_ids ?? [];
+
+        //         // If stored as JSON in DB, decode it
+        //         if (is_string($selectedAddons)) {
+        //             $selectedAddons = json_decode($selectedAddons, true);
+        //         }
+
+        //         $selected_addons = [];
+        //         $selected_addon_quantity = [];
+
+        //          foreach($selectedAddons as $addon){
+        //             $selected_addons[]=$addon['add_on_id'];
+        //             $selected_addon_quantity[]=$addon['add_on_qty'];  
+        //          }
+
+
+        //         $addon_data = Helpers::calculate_addon_price(addons: \App\Models\AddOn::whereIn('id',$selected_addons)->get(), add_on_qtys: $selected_addon_quantity);
+
+
+        //         $variation_options=array();
+        //         $variation_options_qty=array();
+        //         $selectedVariations=$c->variations ?? [];
+
+        //         // If stored as JSON in DB
+        //         if (is_string($selectedVariations)) {
+        //             $selectedVariations = json_decode($selectedVariations, true);
+        //         }
+
+        //         foreach($selectedVariations as $variationOption){
+        //             $variation_options[]=$variationOption['variation_option_id'];
+
+        //             $variation_options_qty[$variationOption['variation_option_id']]=$variationOption['variation_qty'];
+        //         }
+              
+        //         if($code == 'food'){
+                   
+        //             $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$product,quantity: $c['quantity'],add_on_qtys:$selected_addon_quantity, variation_options:$variation_options,add_on_ids:$selectedAddons,incrementCount: true );
+        //             if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
+        //                 return  ['status'=>'failed', 'code' => data_get($addonAndVariationStock, 'type') ?? 'food', 'message' =>data_get($addonAndVariationStock, 'out_of_stock') ];
+        //             }
+        //         }
+
+        //        // $product_variations = json_decode($product->variations, true);
+
+        //         $product_variations = [];
+
+        //         if (!empty($product->variations)) {
+        //             $product_variations = json_decode($product->variations, true) ?? [];
+        //         }
+    
+        //         $variations=[];
+               
+        //         if (count($product_variations)) {
+        //             $variation_data = Helpers::get_varient($product_variations, $selectedVariations);
+        //             $price = ($product['price']*$c->quantity) + $variation_data['price'];
+        //             $variations = $variation_data['variations'];
+
+        //         } else {
+        //             $price = $product['price']*$c->quantity;
+        //         }
+ 
+
+        //         $product->tax = $restaurant->tax;
+
+        //         $product =Helpers::product_data_formatting($product, false, false, app()->getLocale());
+
+        //         $or_d = [
+        //             'food_id' => $food_id ??  null,
+        //             'item_campaign_id' => $campaign_id ?? null,
+        //             'food_details' => json_encode($product),
+        //             'quantity' => $c['quantity'],
+        //             'price' => round($price, config('round_up_to_digit')),
+        //             'tax_amount' =>0,//Helpers::tax_calculate(food:$product, price:$price),
+        //             'discount_on_food' => Helpers::product_discount_calculate(product:$product, price:$price, restaurant:$restaurant),
+        //             'discount_type' => 'discount_on_product',
+        //             'variation' =>json_encode($variations),
+        //             'add_ons' => json_encode($addon_data['addons']),
+        //             'total_add_on_price' => $addon_data['total_add_on_price'],
+        //             'created_at' => now(),
+        //             'updated_at' => now()
+        //         ];
+        //         $order_details[] = $or_d;
+        //         $total_addon_price += $or_d['total_add_on_price'];
+        //         $product_price += $price;
+        //         $restaurant_discount_amount += $or_d['discount_on_food']*$or_d['quantity'];
+
+        //     } else {
+        //        return  ['status'=>'failed','code' => $code ?? null, 'message' => translate('messages.product_unavailable_warning')];
+        //     }
+        // }
+
+
+        foreach ($carts as $c) {
+
+                if ($c['item_type'] === 'App\Models\ItemCampaign' || $c['item_type'] === 'AppModelsItemCampaign') {
+
+                    $product = ItemCampaign::active()->find($c['item_id']);
+                    $campaign_id = $c['item_id'];
+                    $code = 'campaign';
+
+                } else {
+
+                    $product = Food::active()->find($c['item_id']);
+                    $food_id = $c['item_id'];
+                    $code = 'food';
                 }
 
+                if (!$product) {
 
-                
-                 // $selectedAddons=$c->add_on_ids ?? [];
+                    return [
+                        'status' => 'failed',
+                        'code'   => $code ?? null,
+                        'message'=> translate('messages.product_unavailable_warning')
+                    ];
+                }
 
-                 // $selected_addons=array();
-                 // $selected_addon_quantity=array();
+                // Maximum cart quantity check
+                if ($product->maximum_cart_quantity && ($c['quantity'] > $product->maximum_cart_quantity)) {
 
+                    return [
+                        'status'=>'failed',
+                        'code' => 'quantity',
+                        'message' => ($product?->name ?? $product?->title ?? $code)
+                            .' '.translate('messages.has_reached_the_maximum_cart_quantity_limit')
+                    ];
+                }
 
-                 $selectedAddons = $c->add_on_ids ?? [];
+                // Restaurant validation
+                if ($product->restaurant_id != $restaurantId) {
 
-                // If stored as JSON in DB, decode it
+                    return [
+                        'status'=>'failed',
+                        'code' => 'restaurant',
+                        'message' => translate('messages.you_need_to_order_food_from_single_restaurant')
+                    ];
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | SAFE ADDONS
+                |--------------------------------------------------------------------------
+                */
+
+                $selectedAddons = $c->add_on_ids ?? [];
+
+                // Decode if JSON string
                 if (is_string($selectedAddons)) {
-                    $selectedAddons = json_decode($selectedAddons, true);
+
+                    $decoded = json_decode($selectedAddons, true);
+
+                    $selectedAddons = is_array($decoded) ? $decoded : [];
                 }
+
+                // Final safety
+                $selectedAddons = is_array($selectedAddons) ? $selectedAddons : [];
 
                 $selected_addons = [];
                 $selected_addon_quantity = [];
 
-                 foreach($selectedAddons as $addon){
-                    $selected_addons[]=$addon['add_on_id'];
-                    $selected_addon_quantity[]=$addon['add_on_qty'];  
-                 }
+                foreach ($selectedAddons as $addon) {
 
+                    if (!is_array($addon)) {
+                        continue;
+                    }
 
-                $addon_data = Helpers::calculate_addon_price(addons: \App\Models\AddOn::whereIn('id',$selected_addons)->get(), add_on_qtys: $selected_addon_quantity);
+                    $selected_addons[] = $addon['add_on_id'] ?? null;
 
+                    $selected_addon_quantity[] = $addon['add_on_qty'] ?? 0;
+                }
 
-                $variation_options=array();
-                $variation_options_qty=array();
-                $selectedVariations=$c->variations ?? [];
+                // Remove null values
+                $selected_addons = array_filter($selected_addons);
 
-                // If stored as JSON in DB
+                $addon_data = Helpers::calculate_addon_price(
+                    addons: \App\Models\AddOn::whereIn('id', $selected_addons)->get(),
+                    add_on_qtys: $selected_addon_quantity
+                );
+
+                /*
+                |--------------------------------------------------------------------------
+                | SAFE VARIATIONS
+                |--------------------------------------------------------------------------
+                */
+
+                $variation_options = [];
+                $variation_options_qty = [];
+
+                $selectedVariations = $c->variations ?? [];
+
+                // Decode if JSON string
                 if (is_string($selectedVariations)) {
-                    $selectedVariations = json_decode($selectedVariations, true);
+
+                    $decoded = json_decode($selectedVariations, true);
+
+                    $selectedVariations = is_array($decoded) ? $decoded : [];
                 }
 
-                foreach($selectedVariations as $variationOption){
-                    $variation_options[]=$variationOption['variation_option_id'];
+                // Final safety
+                $selectedVariations = is_array($selectedVariations)
+                    ? $selectedVariations
+                    : [];
 
-                    $variation_options_qty[$variationOption['variation_option_id']]=$variationOption['variation_qty'];
+                foreach ($selectedVariations as $variationOption) {
+
+                    if (!is_array($variationOption)) {
+                        continue;
+                    }
+
+                    $variationId = $variationOption['variation_option_id'] ?? null;
+
+                    if (!$variationId) {
+                        continue;
+                    }
+
+                    $variation_options[] = $variationId;
+
+                    $variation_options_qty[$variationId]
+                        = $variationOption['variation_qty'] ?? 0;
                 }
-              
-                if($code == 'food'){
-                   
-                    $addonAndVariationStock= Helpers::addonAndVariationStockCheck(product:$product,quantity: $c['quantity'],add_on_qtys:$selected_addon_quantity, variation_options:$variation_options,add_on_ids:$selectedAddons,incrementCount: true );
-                    if(data_get($addonAndVariationStock, 'out_of_stock') != null) {
-                        return  ['status'=>'failed', 'code' => data_get($addonAndVariationStock, 'type') ?? 'food', 'message' =>data_get($addonAndVariationStock, 'out_of_stock') ];
+
+                /*
+                |--------------------------------------------------------------------------
+                | STOCK CHECK
+                |--------------------------------------------------------------------------
+                */
+
+                if ($code == 'food') {
+
+                    $addonAndVariationStock = Helpers::addonAndVariationStockCheck(
+                        product: $product,
+                        quantity: $c['quantity'],
+                        add_on_qtys: $selected_addon_quantity,
+                        variation_options: $variation_options,
+                        add_on_ids: $selectedAddons,
+                        incrementCount: true
+                    );
+
+                    if (data_get($addonAndVariationStock, 'out_of_stock') != null) {
+
+                        return [
+                            'status'=>'failed',
+                            'code' => data_get($addonAndVariationStock, 'type') ?? 'food',
+                            'message' => data_get($addonAndVariationStock, 'out_of_stock')
+                        ];
                     }
                 }
 
-               // $product_variations = json_decode($product->variations, true);
+                /*
+                |--------------------------------------------------------------------------
+                | SAFE PRODUCT VARIATIONS
+                |--------------------------------------------------------------------------
+                */
 
                 $product_variations = [];
 
                 if (!empty($product->variations)) {
-                    $product_variations = json_decode($product->variations, true) ?? [];
+
+                    $decoded = json_decode($product->variations, true);
+
+                    $product_variations = is_array($decoded)
+                        ? $decoded
+                        : [];
                 }
-    
-                $variations=[];
-               
-                if (count($product_variations)) {
-                    $variation_data = Helpers::get_varient($product_variations, $selectedVariations);
-                    $price = ($product['price']*$c->quantity) + $variation_data['price'];
-                    $variations = $variation_data['variations'];
+
+                $variations = [];
+
+                if (count($product_variations) > 0) {
+
+                    $variation_data = Helpers::get_varient(
+                        $product_variations,
+                        $selectedVariations
+                    );
+
+                    $price = ($product['price'] * $c->quantity)
+                        + ($variation_data['price'] ?? 0);
+
+                    $variations = $variation_data['variations'] ?? [];
 
                 } else {
-                    $price = $product['price']*$c->quantity;
+
+                    $price = $product['price'] * $c->quantity;
                 }
- 
+
+                /*
+                |--------------------------------------------------------------------------
+                | PRODUCT FORMAT
+                |--------------------------------------------------------------------------
+                */
 
                 $product->tax = $restaurant->tax;
 
-                $product =Helpers::product_data_formatting($product, false, false, app()->getLocale());
+                $product = Helpers::product_data_formatting(
+                    $product,
+                    false,
+                    false,
+                    app()->getLocale()
+                );
+
+                /*
+                |--------------------------------------------------------------------------
+                | ORDER DETAILS
+                |--------------------------------------------------------------------------
+                */
 
                 $or_d = [
-                    'food_id' => $food_id ??  null,
+
+                    'food_id' => $food_id ?? null,
+
                     'item_campaign_id' => $campaign_id ?? null,
+
                     'food_details' => json_encode($product),
+
                     'quantity' => $c['quantity'],
+
                     'price' => round($price, config('round_up_to_digit')),
-                    'tax_amount' =>0,//Helpers::tax_calculate(food:$product, price:$price),
-                    'discount_on_food' => Helpers::product_discount_calculate(product:$product, price:$price, restaurant:$restaurant),
+
+                    'tax_amount' => 0,
+
+                    'discount_on_food' => Helpers::product_discount_calculate(
+                        product: $product,
+                        price: $price,
+                        restaurant: $restaurant
+                    ),
+
                     'discount_type' => 'discount_on_product',
-                    'variation' =>json_encode($variations),
-                    'add_ons' => json_encode($addon_data['addons']),
-                    'total_add_on_price' => $addon_data['total_add_on_price'],
+
+                    'variation' => json_encode($variations),
+
+                    'add_ons' => json_encode($addon_data['addons'] ?? []),
+
+                    'total_add_on_price' => $addon_data['total_add_on_price'] ?? 0,
+
                     'created_at' => now(),
+
                     'updated_at' => now()
                 ];
-                $order_details[] = $or_d;
-                $total_addon_price += $or_d['total_add_on_price'];
-                $product_price += $price;
-                $restaurant_discount_amount += $or_d['discount_on_food']*$or_d['quantity'];
 
-            } else {
-               return  ['status'=>'failed','code' => $code ?? null, 'message' => translate('messages.product_unavailable_warning')];
+                $order_details[] = $or_d;
+
+                $total_addon_price += $or_d['total_add_on_price'];
+
+                $product_price += $price;
+
+                $restaurant_discount_amount +=
+                    ($or_d['discount_on_food'] * $or_d['quantity']);
             }
-        }
 
 
         $order->discount_on_product_by = 'vendor';

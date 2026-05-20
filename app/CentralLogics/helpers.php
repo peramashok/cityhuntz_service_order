@@ -1236,7 +1236,28 @@ class Helpers
         }
 
         $data['category_ids'] = $categories;
-            $data['add_ons'] = self::addon_data_formatting(AddOn::whereIn('id', json_decode($data['add_ons']))->active()->get(), true, $trans, $local);
+
+ 
+            // $data['add_ons'] = self::addon_data_formatting(AddOn::whereIn('id', json_decode($data['add_ons']))->active()->get(), true, $trans, $local);
+
+            $addOnIds = $data['add_ons'] ?? [];
+
+            if (is_string($addOnIds)) {
+                $addOnIds = json_decode($addOnIds, true);
+            }
+
+            $addOnIds = is_array($addOnIds) ? $addOnIds : [];
+
+            $data['add_ons'] = self::addon_data_formatting(
+                AddOn::whereIn('id', $addOnIds)
+                    ->active()
+                    ->get(),
+                true,
+                $trans,
+                $local
+            );
+
+
             if ($data->title) {
                 $data['name'] = $data->title;
                 unset($data['title']);

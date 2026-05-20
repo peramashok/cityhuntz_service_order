@@ -6491,4 +6491,6 @@
   'schedule_order_not_available' => 'Schedule order not available',
   'you_need_to_order_at_least' => 'You need to order at least',
   'Order_not_found' => 'Order not found',
+  'maximum_cart_quantity_exceeded' => 'Maximum cart quantity exceeded',
+  'product_unavailable_warning' => 'Product unavailable warning',
 );
