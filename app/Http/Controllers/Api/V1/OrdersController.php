@@ -716,17 +716,17 @@ class OrdersController extends Controller
             }
  
 
-            if($product->restaurant_id != $restaurantId){
-                return  ['status'=>'failed', 'code' => 'restaurant', 'message' => translate('messages.you_need_to_order_food_from_single_restaurant')];
-            }
+           
 
             if ($product) {
                 if($product->maximum_cart_quantity && ($c['quantity'] > $product->maximum_cart_quantity)){
                      return  ['status'=>'failed', 'code' => 'quantity', 'message' =>$product?->name ?? $product?->title ?? $code.' '.translate('messages.has_reached_the_maximum_cart_quantity_limit')];
                 }
 
-
-                
+                if($product->restaurant_id != $restaurantId){
+                    return  ['status'=>'failed', 'code' => 'restaurant', 'message' => translate('messages.you_need_to_order_food_from_single_restaurant')];
+                }
+                    
                  // $selectedAddons=$c->add_on_ids ?? [];
 
                  // $selected_addons=array();

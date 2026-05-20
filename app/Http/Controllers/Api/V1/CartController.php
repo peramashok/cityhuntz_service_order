@@ -43,10 +43,6 @@ class CartController extends Controller
 
             $orderType='';
             $restaurantIds=array();
-            // $carts = Cart::with(['item', 'restaurant'])->where('user_id', $user_id)->where('is_guest',$is_guest)->get()
-
-
-
             $carts = Cart::with(['item', 'restaurant'])
             ->where('user_id', $user_id)
             ->where('is_guest', $is_guest)
